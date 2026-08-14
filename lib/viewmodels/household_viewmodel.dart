@@ -76,6 +76,49 @@ class HouseholdViewModel extends ChangeNotifier {
     }
   }
 
+  Stream<List<HouseholdMember>> watchCurrentMembers() {
+    final householdId = _current?.id;
+    if (householdId == null) return Stream.value(const []);
+    return _service.watchMembers(householdId);
+  }
+
+  Future<void> removeMember(String memberUid) async {
+    final householdId = _current?.id;
+    if (householdId == null) throw StateError('No household selected');
+    _setLoading(true);
+    _error = null;
+    try {
+      await _service.removeMember(householdId, memberUid);
+      await _reload();
+    } catch (e) {
+      _error = 'Failed to remove member: $e';
+      notifyListeners();
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> leaveCurrentHousehold() async {
+    final householdId = _current?.id;
+    if (householdId == null) throw StateError('No household selected');
+    _setLoading(true);
+    _error = null;
+    try {
+      await _service.leaveHousehold(householdId);
+      await _reload();
+      if (_current != null) {
+        await _service.setPreferredHousehold(_current!.id);
+      }
+    } catch (e) {
+      _error = 'Failed to leave household: $e';
+      notifyListeners();
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<void> selectHousehold(String householdId) async {
     final selected = _households.where((h) => h.id == householdId).firstOrNull;
     if (selected == null) throw StateError('Household not available');
