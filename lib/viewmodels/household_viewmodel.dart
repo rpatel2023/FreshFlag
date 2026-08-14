@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart';
 
 import '../models/household.dart';
 import '../services/household_service.dart';
+import '../services/invite_service.dart';
 
 class HouseholdViewModel extends ChangeNotifier {
   final HouseholdService _service = HouseholdService.instance;
+  final InviteService _invites = InviteService.instance;
 
   List<Household> _households = [];
   Household? _current;
@@ -24,25 +26,7 @@ class HouseholdViewModel extends ChangeNotifier {
   Future<void> initializeForUser(String uid) async {
     if (_loadedUid == uid && !_isLoading) return;
     _loadedUid = uid;
-    _setLoading(true);
-    _error = null;
-    try {
-      final preferredId = await _service.getPreferredHouseholdId();
-      _households = await _service.listMyHouseholds();
-      _current = _pickCurrent(preferredId);
-      _membership = _current == null
-          ? null
-          : await _service.getMembership(_current!.id);
-      notifyListeners();
-    } catch (e) {
-      _households = [];
-      _current = null;
-      _membership = null;
-      _error = 'Failed to load households: $e';
-      notifyListeners();
-    } finally {
-      _setLoading(false);
-    }
+    await _reload();
   }
 
   Future<Household> createHousehold({
@@ -56,13 +40,35 @@ class HouseholdViewModel extends ChangeNotifier {
         name: name,
         timezone: timezone,
       );
-      _households = [household, ..._households.where((h) => h.id != household.id)];
+      _households = [
+        household,
+        ..._households.where((h) => h.id != household.id),
+      ];
       _current = household;
       _membership = await _service.getMembership(household.id);
       notifyListeners();
       return household;
     } catch (e) {
       _error = 'Failed to create household: $e';
+      notifyListeners();
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<Household> joinHousehold(String inviteCode) async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final household = await _invites.joinHousehold(inviteCode);
+      _households = await _service.listMyHouseholds();
+      _current = household;
+      _membership = await _service.getMembership(household.id);
+      notifyListeners();
+      return household;
+    } catch (e) {
+      _error = 'Failed to join household: $e';
       notifyListeners();
       rethrow;
     } finally {
@@ -91,6 +97,12 @@ class HouseholdViewModel extends ChangeNotifier {
     }
   }
 
+  void clearError() {
+    if (_error == null) return;
+    _error = null;
+    notifyListeners();
+  }
+
   void reset() {
     _loadedUid = null;
     _households = [];
@@ -99,6 +111,28 @@ class HouseholdViewModel extends ChangeNotifier {
     _isLoading = false;
     _error = null;
     notifyListeners();
+  }
+
+  Future<void> _reload() async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final preferredId = await _service.getPreferredHouseholdId();
+      _households = await _service.listMyHouseholds();
+      _current = _pickCurrent(preferredId);
+      _membership = _current == null
+          ? null
+          : await _service.getMembership(_current!.id);
+      notifyListeners();
+    } catch (e) {
+      _households = [];
+      _current = null;
+      _membership = null;
+      _error = 'Failed to load households: $e';
+      notifyListeners();
+    } finally {
+      _setLoading(false);
+    }
   }
 
   Household? _pickCurrent(String? preferredId) {
