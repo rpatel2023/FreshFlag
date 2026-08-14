@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import '../utils/app_theme.dart';
+import 'package:provider/provider.dart';
+
 import '../models/grocery_item.dart';
-import '../services/local_database_service.dart';
+import '../utils/app_theme.dart';
+import '../viewmodels/grocery_viewmodel.dart';
 import 'add_item_screen.dart';
 import 'barcode_scanner_screen.dart';
 
-/// Premium dashboard screen with grocery list and quick actions
+/// Firestore-backed inventory dashboard.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -15,9 +16,9 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  List<GroceryItem> _groceryItems = [];
   String _selectedCategory = 'All';
-  final List<String> _categories = [
+
+  static const _categories = <String>[
     'All',
     'Fruits',
     'Vegetables',
@@ -31,727 +32,303 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _loadGroceryItems();
-  }
-
-  void _loadGroceryItems() {
-    setState(() {
-      _groceryItems = LocalDatabaseService.getAllGroceryItems();
-    });
-  }
-
-  List<GroceryItem> get _filteredItems {
-    if (_selectedCategory == 'All') {
-      return _groceryItems.where((item) => !item.isConsumed).toList();
-    }
-    return _groceryItems
-        .where((item) => !item.isConsumed && item.category == _selectedCategory)
-        .toList();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final inventory = context.watch<GroceryViewModel>();
+    final visibleItems = inventory.items.where((item) {
+      if (item.isConsumed) return false;
+      return _selectedCategory == 'All' || item.category == _selectedCategory;
+    }).toList();
+
     return Scaffold(
       backgroundColor: AppTheme.offWhite,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            _loadGroceryItems();
-          },
-          color: AppTheme.primaryGreen,
-          child: CustomScrollView(
-            slivers: [
-              // App Bar
-              _buildSliverAppBar(),
-
-              // Quick Actions
-              SliverToBoxAdapter(child: _buildQuickActions()),
-
-              // Statistics Cards
-              SliverToBoxAdapter(child: _buildStatisticsCards()),
-
-              // Category Filter
-              SliverToBoxAdapter(child: _buildCategoryFilter()),
-
-              // Grocery List
-              _buildGroceryList(),
-            ],
+      appBar: AppBar(
+        title: const Text('FreshFlag'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh inventory',
+            onPressed: inventory.isLoading ? null : inventory.loadItems,
+            icon: const Icon(Icons.refresh),
           ),
-        ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildSliverAppBar() {
-    return SliverAppBar(
-      expandedHeight: 120,
-      floating: false,
-      pinned: true,
-      backgroundColor: AppTheme.pureWhite,
-      elevation: 0,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          color: AppTheme.pureWhite,
-          padding: const EdgeInsets.fromLTRB(
-            AppTheme.spacingL,
-            AppTheme.spacingL,
-            AppTheme.spacingL,
-            AppTheme.spacingM,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Dashboard',
-                          style: AppTheme.headingLarge.copyWith(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.textDark,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Manage your groceries',
-                          style: AppTheme.bodyMedium.copyWith(
-                            color: AppTheme.textLight,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Profile Avatar
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen,
-                      shape: BoxShape.circle,
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/default_profile.png',
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(
-                            Icons.person,
-                            color: AppTheme.pureWhite,
-                            size: 20,
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Padding(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      child: AnimationConfiguration.staggeredList(
-        position: 0,
-        duration: const Duration(milliseconds: 600),
-        child: SlideAnimation(
-          verticalOffset: 30.0,
-          child: FadeInAnimation(
-            child: Row(
+      body: RefreshIndicator(
+        onRefresh: inventory.loadItems,
+        child: ListView(
+          padding: const EdgeInsets.all(AppTheme.spacingL),
+          children: [
+            Row(
               children: [
                 Expanded(
-                  child: _buildQuickActionCard(
+                  child: _QuickAction(
                     icon: Icons.add_circle_outline,
-                    title: 'Add Item',
-                    subtitle: 'Manually add grocery',
-                    color: AppTheme.primaryGreen,
-                    onTap: () => _navigateToAddItem(),
+                    label: 'Add item',
+                    onTap: () => _openAddItem(context),
                   ),
                 ),
                 const SizedBox(width: AppTheme.spacingM),
                 Expanded(
-                  child: _buildQuickActionCard(
+                  child: _QuickAction(
                     icon: Icons.qr_code_scanner,
-                    title: 'Scan Barcode',
-                    subtitle: 'Quick add with camera',
-                    color: AppTheme.accentGreen,
-                    onTap: () => _navigateToScanner(),
+                    label: 'Scan barcode',
+                    onTap: () => _openScanner(context),
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(AppTheme.spacingM),
-        decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
-          borderRadius: BorderRadius.circular(AppTheme.radiusM),
-          boxShadow: AppTheme.cardShadow,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppTheme.radiusS),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(height: AppTheme.spacingM),
-            Text(
-              title,
-              style: AppTheme.headingSmall.copyWith(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            const SizedBox(height: AppTheme.spacingL),
+            _InventorySummary(inventory: inventory),
+            const SizedBox(height: AppTheme.spacingL),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _categories.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: AppTheme.spacingS),
+                itemBuilder: (context, index) {
+                  final category = _categories[index];
+                  return ChoiceChip(
+                    label: Text(category),
+                    selected: _selectedCategory == category,
+                    onSelected: (_) => setState(
+                      () => _selectedCategory = category,
+                    ),
+                  );
+                },
               ),
             ),
-            const SizedBox(height: AppTheme.spacingXS),
-            Text(
-              subtitle,
-              style: AppTheme.bodySmall.copyWith(color: AppTheme.textLight),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatisticsCards() {
-    final totalItems = _groceryItems.where((item) => !item.isConsumed).length;
-    final expiringItems = LocalDatabaseService.getExpiringItems().length;
-    final expiredItems = LocalDatabaseService.getExpiredItems().length;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
-      child: AnimationConfiguration.staggeredList(
-        position: 1,
-        duration: const Duration(milliseconds: 600),
-        child: SlideAnimation(
-          verticalOffset: 30.0,
-          child: FadeInAnimation(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    title: 'Total Items',
-                    value: totalItems.toString(),
-                    color: AppTheme.infoBlue,
-                    icon: Icons.inventory_2,
-                  ),
-                ),
-                const SizedBox(width: AppTheme.spacingS),
-                Expanded(
-                  child: _buildStatCard(
-                    title: 'Expiring Soon',
-                    value: expiringItems.toString(),
-                    color: AppTheme.warningOrange,
-                    icon: Icons.schedule,
-                  ),
-                ),
-                const SizedBox(width: AppTheme.spacingS),
-                Expanded(
-                  child: _buildStatCard(
-                    title: 'Expired',
-                    value: expiredItems.toString(),
-                    color: AppTheme.errorRed,
-                    icon: Icons.warning,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required Color color,
-    required IconData icon,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingM),
-      decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusM),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: AppTheme.spacingS),
-          Text(
-            value,
-            style: AppTheme.headingMedium.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          Text(
-            title,
-            style: AppTheme.bodySmall.copyWith(color: AppTheme.textLight),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryFilter() {
-    return Padding(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      child: AnimationConfiguration.staggeredList(
-        position: 2,
-        duration: const Duration(milliseconds: 600),
-        child: SlideAnimation(
-          verticalOffset: 30.0,
-          child: FadeInAnimation(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Categories',
-                  style: AppTheme.headingSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: AppTheme.spacingM),
-                SizedBox(
-                  height: 40,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _categories.length,
-                    itemBuilder: (context, index) {
-                      final category = _categories[index];
-                      final isSelected = category == _selectedCategory;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(
-                          right: AppTheme.spacingS,
-                        ),
-                        child: FilterChip(
-                          label: Text(category),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedCategory = category;
-                            });
-                          },
-                          backgroundColor: AppTheme.lightGray,
-                          selectedColor: AppTheme.primaryGreen,
-                          labelStyle: TextStyle(
-                            color: isSelected
-                                ? AppTheme.pureWhite
-                                : AppTheme.textMedium,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusL,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGroceryList() {
-    final filteredItems = _filteredItems;
-
-    if (filteredItems.isEmpty) {
-      return SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.inventory_2_outlined,
-                size: 80,
-                color: AppTheme.textLight.withValues(alpha: 0.5),
-              ),
-              const SizedBox(height: AppTheme.spacingL),
-              Text(
-                'No items found',
-                style: AppTheme.headingSmall.copyWith(
-                  color: AppTheme.textLight,
-                ),
-              ),
-              const SizedBox(height: AppTheme.spacingS),
-              Text(
-                'Add your first grocery item to get started',
-                style: AppTheme.bodyMedium.copyWith(color: AppTheme.textLight),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return SliverPadding(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
-          final item = filteredItems[index];
-          return AnimationConfiguration.staggeredList(
-            position: index,
-            duration: const Duration(milliseconds: 375),
-            child: SlideAnimation(
-              verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: Padding(
+            const SizedBox(height: AppTheme.spacingL),
+            if (inventory.isLoading && inventory.items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(AppTheme.spacingXL),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (inventory.error != null && inventory.items.isEmpty)
+              _ErrorState(
+                message: inventory.error!,
+                onRetry: inventory.loadItems,
+              )
+            else if (visibleItems.isEmpty)
+              const _EmptyState()
+            else
+              ...visibleItems.map(
+                (item) => Padding(
                   padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
-                  child: _buildGroceryItemCard(item),
-                ),
-              ),
-            ),
-          );
-        }, childCount: filteredItems.length),
-      ),
-    );
-  }
-
-  Widget _buildGroceryItemCard(GroceryItem item) {
-    final daysUntilExpiry = item.daysUntilExpiry;
-    Color statusColor = AppTheme.successGreen;
-    String statusText = 'Fresh';
-
-    if (item.isExpired) {
-      statusColor = AppTheme.errorRed;
-      statusText = 'Expired';
-    } else if (item.isExpiringSoon) {
-      statusColor = AppTheme.warningOrange;
-      statusText = 'Expires soon';
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusM),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacingM),
-        child: Row(
-          children: [
-            // Item Image
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: AppTheme.lightGreen,
-                borderRadius: BorderRadius.circular(AppTheme.radiusS),
-              ),
-              child: item.imageUrl != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusS),
-                      child: Image.network(
-                        item.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusS,
-                            ),
-                            child: Image.asset(
-                              'assets/images/image.png',
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.shopping_basket,
-                                  color: AppTheme.primaryGreen,
-                                  size: 30,
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                    )
-                  : ClipRRect(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusS),
-                      child: Image.asset(
-                        'assets/images/image.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(
-                            Icons.shopping_basket,
-                            color: AppTheme.primaryGreen,
-                            size: 30,
-                          );
-                        },
-                      ),
-                    ),
-            ),
-
-            const SizedBox(width: AppTheme.spacingM),
-
-            // Item Details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    style: AppTheme.headingSmall.copyWith(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: AppTheme.spacingXS),
-                  Row(
-                    children: [
-                      Text(
-                        '${item.category} • Qty: ${item.quantity}',
-                        style: AppTheme.bodySmall.copyWith(
-                          color: AppTheme.textLight,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppTheme.spacingXS),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingS,
-                      vertical: AppTheme.spacingXS,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusS),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: AppTheme.bodySmall.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Actions
-            Column(
-              children: [
-                Text(
-                  '${daysUntilExpiry}d',
-                  style: AppTheme.bodyMedium.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w600,
+                  child: _InventoryCard(
+                    item: item,
+                    onDelete: () => _deleteItem(context, item),
                   ),
                 ),
-                const SizedBox(height: AppTheme.spacingS),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, color: AppTheme.textLight),
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'edit':
-                        // TODO: Navigate to edit screen
-                        break;
-                      case 'consumed':
-                        _markAsConsumed(item);
-                        break;
-                      case 'delete':
-                        _deleteItem(item);
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 20),
-                          SizedBox(width: 8),
-                          Text('Edit'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'consumed',
-                      child: Row(
-                        children: [
-                          Icon(Icons.check_circle, size: 20),
-                          SizedBox(width: 8),
-                          Text('Mark as consumed'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete,
-                            size: 20,
-                            color: AppTheme.errorRed,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Delete',
-                            style: TextStyle(color: AppTheme.errorRed),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  void _navigateToAddItem() {
-    Navigator.of(context)
-        .push(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const AddItemScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  return SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0.0, 1.0),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  );
-                },
-            transitionDuration: const Duration(milliseconds: 300),
-          ),
-        )
-        .then((_) => _loadGroceryItems());
-  }
-
-  void _navigateToScanner() {
-    Navigator.of(context)
-        .push(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const BarcodeScannerScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  return SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(1.0, 0.0),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  );
-                },
-            transitionDuration: const Duration(milliseconds: 300),
-          ),
-        )
-        .then((_) => _loadGroceryItems());
-  }
-
-  void _markAsConsumed(GroceryItem item) async {
-    final updatedItem = GroceryItem(
-      id: item.id,
-      name: item.name,
-      quantity: item.quantity,
-      category: item.category,
-      barcode: item.barcode,
-      addedDate: item.addedDate,
-      expiryDate: item.expiryDate,
-      imageUrl: item.imageUrl,
-      notes: item.notes,
-      isConsumed: true,
+  Future<void> _openAddItem(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AddItemScreen()),
     );
-
-    await LocalDatabaseService.updateGroceryItem(updatedItem);
-    _loadGroceryItems();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${item.name} marked as consumed'),
-          backgroundColor: AppTheme.successGreen,
-        ),
-      );
-    }
   }
 
-  void _deleteItem(GroceryItem item) async {
+  Future<void> _openScanner(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+    );
+  }
+
+  Future<void> _deleteItem(BuildContext context, GroceryItem item) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Item'),
-        content: Text('Are you sure you want to delete ${item.name}?'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete item?'),
+        content: Text('Remove ${item.name} from your inventory?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppTheme.errorRed),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
 
-    if (confirmed == true) {
-      await LocalDatabaseService.deleteGroceryItem(item.id);
-      _loadGroceryItems();
+    if (confirmed != true || !context.mounted) return;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${item.name} deleted'),
-            backgroundColor: AppTheme.errorRed,
-          ),
-        );
-      }
+    try {
+      await context.read<GroceryViewModel>().deleteItem(item.id);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete item.')),
+      );
     }
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.spacingL),
+          child: Column(
+            children: [
+              Icon(icon, size: 32, color: AppTheme.primaryGreen),
+              const SizedBox(height: AppTheme.spacingS),
+              Text(label, textAlign: TextAlign.center),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InventorySummary extends StatelessWidget {
+  const _InventorySummary({required this.inventory});
+
+  final GroceryViewModel inventory;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingL),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _SummaryValue(label: 'Items', value: inventory.items.length),
+            _SummaryValue(
+              label: 'Expiring',
+              value: inventory.expiringSoonItems.length,
+            ),
+            _SummaryValue(
+              label: 'Expired',
+              value: inventory.expiredItems.length,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryValue extends StatelessWidget {
+  const _SummaryValue({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          '$value',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        Text(label),
+      ],
+    );
+  }
+}
+
+class _InventoryCard extends StatelessWidget {
+  const _InventoryCard({required this.item, required this.onDelete});
+
+  final GroceryItem item;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = item.daysUntilExpiry;
+    final status = item.isExpired
+        ? 'Expired'
+        : days == 0
+            ? 'Expires today'
+            : 'Expires in $days day${days == 1 ? '' : 's'}';
+
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: AppTheme.lightGreen,
+          child: const Icon(Icons.inventory_2_outlined),
+        ),
+        title: Text(item.name),
+        subtitle: Text(
+          '${item.category} • Qty ${item.quantity}\n$status'
+          '${item.barcode == null ? '' : '\nBarcode: ${item.barcode}'}',
+        ),
+        isThreeLine: item.barcode != null,
+        trailing: IconButton(
+          tooltip: 'Delete',
+          onPressed: onDelete,
+          icon: const Icon(Icons.delete_outline),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(AppTheme.spacingXL),
+      child: Column(
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 64),
+          SizedBox(height: AppTheme.spacingM),
+          Text('No items yet'),
+          SizedBox(height: AppTheme.spacingS),
+          Text('Add an item manually or scan a barcode to get started.'),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.spacingXL),
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline, size: 56),
+          const SizedBox(height: AppTheme.spacingM),
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: AppTheme.spacingM),
+          OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
   }
 }
