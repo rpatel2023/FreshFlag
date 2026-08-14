@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:freshflag/models/grocery_item.dart';
+import 'package:freshflag/models/product_lookup_result.dart';
 
 void main() {
   group('GroceryItem persistence', () {
@@ -73,6 +74,45 @@ void main() {
 
       expect(item.daysUntilExpiry, 3);
       expect(item.isExpiringSoon, isTrue);
+    });
+  });
+
+  group('ProductLookupResult', () {
+    test('parses the Open Food Facts fields FreshFlag needs', () {
+      final product = ProductLookupResult.fromOpenFoodFactsProduct(
+        '3017620422003',
+        {
+          'product_name': 'Hazelnut Spread',
+          'quantity': '400 g',
+        },
+      );
+
+      expect(product.barcode, '3017620422003');
+      expect(product.name, 'Hazelnut Spread');
+      expect(product.quantityLabel, '400 g');
+    });
+
+    test('falls back to a generic product name', () {
+      final product = ProductLookupResult.fromOpenFoodFactsProduct(
+        '12345678',
+        {
+          'product_name': '   ',
+          'generic_name': 'Tomato sauce',
+        },
+      );
+
+      expect(product.name, 'Tomato sauce');
+      expect(product.quantityLabel, isNull);
+    });
+
+    test('rejects records without a usable display name', () {
+      expect(
+        () => ProductLookupResult.fromOpenFoodFactsProduct(
+          '12345678',
+          {'quantity': '500 g'},
+        ),
+        throwsFormatException,
+      );
     });
   });
 }
