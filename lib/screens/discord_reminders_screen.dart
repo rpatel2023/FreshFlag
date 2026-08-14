@@ -46,7 +46,6 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
     final configured = status?.configured ?? false;
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Discord reminders')),
       body: ListView(
         padding: const EdgeInsets.all(AppTheme.spacingL),
