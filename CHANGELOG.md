@@ -175,5 +175,6 @@ Branch: `phase8-testflight-prep`.
 - FreshFlag 1024×1024 master icon and all **21** iOS AppIcon renditions were generated successfully.
 - Generated `pubspec.lock`, macOS plugin registrant, Xcode bundle IDs and icon assets were committed/pushed as `4a46ea3`.
 - Ubuntu working tree was clean after that commit.
+- Added `docs/PHASE8_SOURCE_VALIDATION.md` as the durable source-validation record and explicit list of remaining external Firebase/macOS/Apple gates.
 
-Current checkpoint: Phase 8 source prep is validated on Ubuntu. Remaining work is the real FreshFlag Firebase project configuration/deployment and macOS/Xcode/Apple-signing/TestFlight validation. No Phase 8 PR has been opened yet, so no additional Phase 8 CI run has been triggered.
+Current checkpoint: Phase 8 source prep is validated on Ubuntu. Remaining work is the real FreshFlag Firebase project configuration/deployment and macOS/Xcode/Apple-signing/TestFlight validation. Open one coherent Phase 8 PR and use one Flutter CI validation cycle; do not manually trigger extra workflows.
