@@ -105,7 +105,7 @@ class AppTheme {
   // Shadows
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withOpacity(0.08),
+      color: Colors.black.withValues(alpha: 0.08),
       blurRadius: 16,
       offset: const Offset(0, 4),
     ),
@@ -113,7 +113,7 @@ class AppTheme {
 
   static List<BoxShadow> get buttonShadow => [
     BoxShadow(
-      color: primaryGreen.withOpacity(0.3),
+      color: primaryGreen.withValues(alpha: 0.3),
       blurRadius: 12,
       offset: const Offset(0, 4),
     ),
@@ -130,7 +130,6 @@ class AppTheme {
         primary: primaryGreen,
         secondary: accentGreen,
         surface: pureWhite,
-        background: offWhite,
         error: errorRed,
       ),
 
@@ -151,7 +150,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusM),
         ),
-        shadowColor: Colors.black.withOpacity(0.1),
+        shadowColor: Colors.black.withValues(alpha: 0.1),
       ),
 
       // Elevated Button Theme
