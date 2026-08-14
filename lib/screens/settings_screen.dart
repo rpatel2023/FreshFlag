@@ -5,8 +5,8 @@ import '../services/firebase_auth_service.dart';
 import '../services/local_database_service.dart';
 import '../theme/theme_provider.dart';
 import '../utils/app_theme.dart';
+import '../viewmodels/household_viewmodel.dart';
 
-/// Minimal trustworthy settings surface for Phase 1.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -22,6 +22,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final auth = context.read<FirebaseAuthService>();
     final user = auth.currentUser;
     final theme = context.watch<ThemeProvider>();
+    final household = context.watch<HouseholdViewModel>();
+    final current = household.current;
 
     return Scaffold(
       backgroundColor: AppTheme.offWhite,
@@ -38,6 +40,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(user?.email ?? 'Signed in'),
             ),
           ),
+          const SizedBox(height: AppTheme.spacingM),
+          if (current != null)
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.home_outlined),
+                    title: Text(current.name),
+                    subtitle: Text(
+                      '${current.timezone} • ${household.isOwner ? 'Owner' : 'Member'}',
+                    ),
+                  ),
+                  if (household.households.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppTheme.spacingM,
+                        0,
+                        AppTheme.spacingM,
+                        AppTheme.spacingM,
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: current.id,
+                        decoration: const InputDecoration(
+                          labelText: 'Active household',
+                        ),
+                        items: household.households
+                            .map((item) => DropdownMenuItem(
+                                  value: item.id,
+                                  child: Text(item.name),
+                                ))
+                            .toList(),
+                        onChanged: household.isLoading
+                            ? null
+                            : (value) async {
+                                if (value != null) {
+                                  await household.selectHousehold(value);
+                                }
+                              },
+                      ),
+                    ),
+                ],
+              ),
+            ),
           const SizedBox(height: AppTheme.spacingM),
           Card(
             child: Column(
@@ -67,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const ListTile(
                   leading: Icon(Icons.info_outline),
                   title: Text('FreshFlag'),
-                  subtitle: Text('Phase 1 stabilization build'),
+                  subtitle: Text('Household inventory build'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.logout),
