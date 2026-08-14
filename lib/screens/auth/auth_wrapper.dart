@@ -4,10 +4,14 @@ import 'package:provider/provider.dart';
 
 import '../../services/firebase_auth_service.dart';
 import '../../viewmodels/grocery_viewmodel.dart';
-import '../home_screen.dart';
+import '../main_app_screen.dart';
 import 'login_screen.dart';
 
-/// Routes between authentication and the signed-in inventory experience.
+/// Routes between authentication and the app from the real Firebase session.
+///
+/// Inventory is loaded when an authenticated user becomes active and cleared
+/// when the session ends so one user's data can never leak into another user's
+/// in-memory state.
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
@@ -16,28 +20,7 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  String? _loadedUserId;
-
-  void _syncInventoryFor(User? user) {
-    final groceryViewModel = context.read<GroceryViewModel>();
-
-    if (user == null) {
-      if (_loadedUserId != null) {
-        _loadedUserId = null;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) groceryViewModel.reset();
-        });
-      }
-      return;
-    }
-
-    if (_loadedUserId == user.uid) return;
-    _loadedUserId = user.uid;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) groceryViewModel.loadItems();
-    });
-  }
+  String? _loadedUid;
 
   @override
   Widget build(BuildContext context) {
@@ -45,31 +28,37 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     return StreamBuilder<User?>(
       stream: authService.authStateChanges,
+      initialData: authService.currentUser,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
         final user = snapshot.data;
-        _syncInventoryFor(user);
-
-        if (user != null) {
-          return const HomeScreen();
+        if (user == null) {
+          if (_loadedUid != null) {
+            _loadedUid = null;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              context.read<GroceryViewModel>().reset();
+            });
+          }
+          return const LoginScreen();
         }
 
-        return const LoginScreen();
+        if (_loadedUid != user.uid) {
+          _loadedUid = user.uid;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            context.read<GroceryViewModel>().loadItems();
+          });
+        }
+
+        return const MainAppScreen();
       },
     );
-  }
-}
-
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
