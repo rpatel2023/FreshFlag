@@ -89,10 +89,33 @@ Branch: `phase6-notification-backend`.
 - Authorization coverage proves member-vs-outsider household reads, owner-only reminder management, self-only device registration, valid invite self-join, revoked/expired invite rejection, owner escalation rejection, cross-household item write rejection, and client denial of `notificationDeliveries`.
 - Added `.github/workflows/backend-ci.yml` for Functions and Firestore Emulator validation.
 
-### Validation
+### Validation and integration
 
 - Backend CI run `31813905317`: **success** — Functions TypeScript build/tests and all Firestore Emulator authorization tests passed.
 - Flutter CI run `31813905459`: **success** — dependency/lockfile check, **14 tests**, analyzer, and Linux release build all passed after removing local reminder scheduling.
 - Final pinned backend dependencies revalidated in Backend CI run `31814127517`: Functions tests passed and Firestore Emulator tests passed.
+- Final Phase 6 HEAD `614338b` revalidated by Backend CI run `31814348654` and Flutter CI run `31814348291`; both succeeded.
+- PR #5 merged to `main` as `0d847e5e0edc263e7c453eb3f584fa9580de4140`.
 
-Result: Phase 6 source is accepted for integration. Real Firebase deployment is intentionally separate because it requires a configured FreshFlag Firebase project, billing/runtime access, and production platform credentials.
+Result: Phase 6 source is integrated. Real Firebase deployment remains separate because it requires a configured FreshFlag Firebase project, billing/runtime access, and production platform credentials.
+
+## 2026-08-14 — Phase 7 notification deep linking — IN PROGRESS
+
+Branch: `feature/notification-deep-links`.
+
+- Added a narrow `NotificationTarget` parser that accepts only expiry-reminder payloads containing both `householdId` and `itemId`; Phase 6 `expiry_reminder` payloads remain backward compatible.
+- FCM now preserves terminated-launch notification targets until the authenticated app shell is ready and emits background notification-tap targets to the live shell.
+- FCM message/tap listeners are installed before initial token lookup so an early Apple/APNs token timing failure cannot disable deep-link handling for the process lifetime.
+- Enabled foreground Apple notification presentation so physical-device testing can verify foreground, background, and terminated tap behavior.
+- Notification taps verify the target household is one the signed-in user can access, switch households when required, bind the scoped inventory, fetch the exact item, switch to the Inventory tab, and open the item detail screen.
+- Missing/deleted items and lost household access degrade to a user-visible message rather than an invalid route.
+- Added a reusable item detail view and made ordinary inventory rows open the same view; users can mark an item consumed or restore it from there.
+- Added notification payload parsing tests for current, legacy, unrelated, and incomplete payloads.
+
+### CI cost-control decision
+
+- Feature work now uses `feature/...` branches that do not trigger push CI.
+- Flutter and Backend workflows are being changed to PR-only validation with path filters plus manual dispatch.
+- The intent is one relevant validation cycle after a coherent branch is ready, rather than Actions runs after every private-repo commit or running the backend emulator for client-only changes.
+
+Current checkpoint: complete source review, then open one Phase 7 PR and use its relevant CI result as the merge gate. Physical iPhone notification-tap validation remains a Phase 8/TestFlight requirement.
