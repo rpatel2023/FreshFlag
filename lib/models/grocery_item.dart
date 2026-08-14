@@ -10,6 +10,7 @@ class GroceryItem {
     required this.quantity,
     required this.category,
     this.barcode,
+    this.brand,
     required this.addedDate,
     required DateTime expiryDate,
     this.location,
@@ -27,6 +28,7 @@ class GroceryItem {
   final int quantity;
   final String category;
   final String? barcode;
+  final String? brand;
   final DateTime addedDate;
   final DateTime expiryDate;
   final String? location;
@@ -44,6 +46,7 @@ class GroceryItem {
         'quantity': quantity,
         'category': category,
         'barcode': barcode,
+        'brand': brand,
         'addedDate': addedDate.toIso8601String(),
         'expiryDate': formatDateOnly(expiryDate),
         'location': location,
@@ -62,6 +65,7 @@ class GroceryItem {
         quantity: (map['quantity'] as num).toInt(),
         category: map['category'] as String,
         barcode: map['barcode'] as String?,
+        brand: map['brand'] as String?,
         addedDate: DateTime.parse(map['addedDate'] as String),
         expiryDate: parseDateOnly(map['expiryDate'] as String),
         location: map['location'] as String?,
@@ -86,6 +90,7 @@ class GroceryItem {
     int? quantity,
     String? category,
     String? barcode,
+    String? brand,
     DateTime? addedDate,
     DateTime? expiryDate,
     String? location,
@@ -102,6 +107,7 @@ class GroceryItem {
         quantity: quantity ?? this.quantity,
         category: category ?? this.category,
         barcode: barcode ?? this.barcode,
+        brand: brand ?? this.brand,
         addedDate: addedDate ?? this.addedDate,
         expiryDate: expiryDate ?? this.expiryDate,
         location: location ?? this.location,
@@ -147,6 +153,7 @@ class GroceryItem {
           other.quantity == quantity &&
           other.category == category &&
           other.barcode == barcode &&
+          other.brand == brand &&
           other.addedDate == addedDate &&
           other.expiryDate == expiryDate &&
           other.location == location &&
@@ -165,6 +172,7 @@ class GroceryItem {
         quantity,
         category,
         barcode,
+        brand,
         addedDate,
         expiryDate,
         location,
