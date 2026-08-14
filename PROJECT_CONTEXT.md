@@ -1,12 +1,13 @@
 # FreshFlag — Project Context & Product Source of Truth
 
-> Primary target: iPhone / TestFlight  
+> Primary target: iPhone / private household sideload via SideStore  
+> Optional later distribution: TestFlight / App Store Connect  
 > Client: Flutter  
 > Backend: Firebase  
 > Product: shared household food-expiry tracking  
 > Implementation history: `CHANGELOG.md`  
 > Implemented architecture: `ARCHITECTURE.md`  
-> TestFlight procedure: `docs/testflight.md`
+> iOS distribution procedure: `docs/testflight.md`
 
 This document defines what FreshFlag is and the constraints future implementation must preserve. When source code and this document disagree about product intent, treat this document as authoritative unless a deliberate decision is recorded in `CHANGELOG.md` and reflected here.
 
@@ -31,7 +32,7 @@ FreshFlag is not an ERP, recipe platform, meal planner, nutrition tracker, budge
 
 The MVP is complete only when this scenario works reliably:
 
-1. User A installs FreshFlag through TestFlight.
+1. User A installs a FreshFlag iOS build through the chosen private distribution path (SideStore/free Apple Account first; TestFlight remains optional later).
 2. User A creates/signs into an account.
 3. User A creates a household.
 4. User A shares a household invite.
@@ -42,8 +43,8 @@ The MVP is complete only when this scenario works reliably:
 9. The item appears on both phones without manual refresh.
 10. The household has a custom reminder rule.
 11. The backend evaluates the rule in the household timezone.
-12. Both eligible users receive exactly one intended push notification.
-13. Tapping the alert opens the correct household item.
+12. The household receives the intended reminder through at least one production-capable channel; Discord is the reliable zero-fee fallback, while FCM/APNs remains supported where the signing path allows it.
+13. When native push is available, tapping the alert opens the correct household item.
 14. Either member marks the item consumed/removed.
 15. Both phones reflect the updated shared state.
 
@@ -59,7 +60,7 @@ MVP authentication:
 - sign out;
 - one or more registered devices per user.
 
-Additional providers such as Sign in with Apple or Google are post-MVP unless App Store requirements force a change.
+Additional providers such as Sign in with Apple or Google are post-MVP unless a later distribution path forces a change.
 
 ## Household ownership invariant
 
@@ -97,7 +98,7 @@ Users must be able to:
 
 Owners must be able to create/revoke invitations and manage notification rules.
 
-Member removal, leaving a household, ownership transfer, and richer household administration are valid follow-up work if not complete in the first TestFlight build, but the data/security model must not prevent them.
+Member removal, leaving a household, ownership transfer, and richer household administration are valid follow-up work if not complete in the first private iPhone build, but the data/security model must not prevent them.
 
 ## Invitations
 
@@ -230,18 +231,40 @@ All inventory operations must be scoped to a household the authenticated user is
 
 Notifications are backend-authoritative because local scheduling on the phone that added an item cannot reliably notify the whole household.
 
-Architecture:
+Implemented architecture:
 
 ```text
 Firestore items + household rules
   -> scheduled Firebase Function
   -> determine due deliveries
   -> idempotent delivery ledger
-  -> Firebase Cloud Messaging
-  -> APNs / household devices
+  -> +--------------------+
+     |                    |
+     v                    v
+  FCM/APNs            Discord webhook
+  device push         shared household channel
 ```
 
+Discord is a parallel household reminder channel, not merely an error fallback after an FCM API call. A successful FCM send acknowledgement does not prove a free-sideloaded iPhone displayed the notification.
+
 Do not reintroduce client-only expiry scheduling as the authoritative reminder path.
+
+## Discord reminder fallback
+
+For the zero-fee private distribution path, Discord is the reliable reminder channel when Apple push entitlements are unavailable or unreliable under free signing.
+
+Properties:
+
+- one Discord incoming webhook per household;
+- owner-managed through authenticated callable Functions;
+- webhook URL stored only in backend-owned `householdIntegrations/{householdId}`;
+- regular clients, including the household owner, cannot read/write the secret directly;
+- webhook URLs are restricted to valid Discord HTTPS webhook hosts/paths;
+- `allowed_mentions` is disabled for user-derived reminder text;
+- one Discord reminder is emitted per household/item/rule/expiry event, not once per member;
+- Discord has its own deterministic delivery identity/ledger claim independent of FCM recipient delivery IDs.
+
+Discord configuration lives in Settings and includes save/replace, enable/disable, status, and a test-message action.
 
 ## Notification rules
 
@@ -293,11 +316,13 @@ Multi-timezone per-user reminder semantics are post-MVP.
 
 Duplicate worker executions must not duplicate a reminder.
 
-Delivery identity is deterministically derived from exactly:
+FCM recipient delivery identity is deterministically derived from exactly:
 
 ```text
 householdId + itemId + ruleId + expiryDate + recipientUid
 ```
+
+Discord uses a separate deterministic household-level delivery ID derived from the household/item/rule/expiry event.
 
 The backend owns `notificationDeliveries`. Regular clients must not forge delivery records.
 
@@ -342,7 +367,11 @@ notification tap
   -> open exact item detail
 ```
 
-This must be physically tested with the app foreground, background, and terminated.
+This must be physically tested with the app foreground, background, and terminated when the chosen signing path supports native push.
+
+## Dark mode
+
+FreshFlag provides a persisted app-level dark-mode toggle in Settings using `SharedPreferences`. The Material theme, core authenticated screens, auth screens, household setup/sharing, inventory, reminders, reminder rules, item details, and Discord settings must all honor the active theme rather than forcing light-only colors.
 
 ## Firebase security invariants
 
@@ -358,7 +387,8 @@ At minimum:
 6. device tokens are not publicly readable;
 7. notification deliveries are backend-managed;
 8. invite acceptance validates a real active invite;
-9. server-owned fields are not freely client-writable.
+9. server-owned fields are not freely client-writable;
+10. integration secrets such as Discord webhook URLs are backend-only and client-denied.
 
 Use Firebase Emulator tests for these boundaries.
 
@@ -392,10 +422,12 @@ Ask for camera permission when scanning is first used. Ask for notifications whe
 
 - Flutter client; no Swift rewrite for the MVP.
 - Firebase Auth + Firestore + FCM + Functions/Scheduler + Emulator Suite.
+- Discord incoming webhooks as the household-level zero-fee reminder fallback.
 - Open Food Facts for packaged-product lookup.
 - Household-owned inventory.
 - Date-only expiry values.
 - Backend-owned shared reminders.
+- SideStore/free Apple Account as the first private iPhone distribution path; TestFlight is optional later rather than an MVP requirement.
 - Permissive/MIT-compatible source strategy.
 
 Do not add a second backend such as Supabase without an explicit recorded reason.
@@ -468,7 +500,9 @@ Particularly test:
 - notification eligibility/timezone windows;
 - idempotency identities;
 - household/invite authorization;
-- notification-target parsing/deep links.
+- notification-target parsing/deep links;
+- Discord webhook validation and backend-only integration-secret access;
+- light/dark theme regression behavior.
 
 ## Phase map
 
@@ -479,23 +513,25 @@ Particularly test:
 - Phase 4: invitations — complete MVP join flow.
 - Phase 5: configurable notification rules/device registration — complete source.
 - Phase 6: backend scheduled push worker/security harness — complete source; production deployment pending.
-- Phase 7: notification deep linking/item detail — complete source; physical-device validation pending.
-- Phase 8: iOS/Firebase production configuration, polish, physical testing, and TestFlight — active.
+- Phase 7: notification deep linking/item detail — complete source; physical-device validation pending where native push is available.
+- Phase 8: iOS/Firebase production configuration, private sideload build, physical testing, and optional later TestFlight — active.
+- Discord household reminder fallback and app-wide dark mode — integrated and source-validated as part of final MVP preparation.
 
 ## Phase 8 release gate
 
-Before TestFlight:
+Before the first private iPhone release:
 
-- choose/register one unique bundle identifier;
-- configure Apple signing team;
-- register matching Firebase iOS app;
-- replace inherited Firebase configuration with a FreshFlag-owned project;
-- complete modern Flutter Swift Package Manager migration under macOS/Xcode;
-- enable/configure APNs + FCM;
+- create/configure one FreshFlag-owned Firebase project;
+- keep the unique bundle identifier `com.rpatel2023.freshflag`;
+- register the matching Firebase iOS app and regenerate FlutterFire configuration;
 - deploy Firestore rules and Functions;
-- replace inherited icon/splash branding;
-- build/archive/upload through App Store Connect;
-- complete privacy/beta metadata;
-- pass the physical two-account/two-device acceptance scenario in `docs/testflight.md`.
+- enable Firebase Authentication email/password and create Firestore;
+- complete modern Flutter Swift Package Manager/Xcode migration on a macOS builder;
+- generate an installable unsigned/ad-hoc iOS artifact suitable for the chosen sideload workflow;
+- bootstrap SideStore on both target iPhones using the free Apple Account path and keep the 7-day refresh requirement in mind;
+- configure the household Discord webhook and prove scheduled Discord reminders arrive;
+- test FCM/APNs if the free signing path exposes the required entitlement, but do not make native push a blocker for the zero-fee household build;
+- pass the physical two-account/two-device acceptance scenario;
+- if the project later moves to TestFlight/App Store distribution, then complete Apple Developer Program signing, APNs production credentials, App Store Connect privacy/beta metadata, archive, and upload.
 
 When implementation choices become unclear, choose the option that makes the core loop faster, more secure, and more reliable rather than expanding the product surface.
