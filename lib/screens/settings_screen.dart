@@ -31,7 +31,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final current = household.current;
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(AppTheme.spacingL),
