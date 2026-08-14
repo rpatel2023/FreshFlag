@@ -82,14 +82,13 @@ Repository integration:
 
 Branch: `phase3-households`
 
-- Added `Household`, `HouseholdMember`, and `HouseholdRole` domain models.
-- Household stores name, owner UID, member UID list, IANA timezone, and timestamps.
-- Membership uses explicit `owner` / `member` documents under `households/{householdId}/members/{uid}`.
-- Added household discovery, creation, preferred-household selection, first-run setup and switching.
-- Inventory moved to `households/{householdId}/items/{itemId}`.
-- Grocery items gained household/audit fields.
-- Inventory state uses Firestore snapshots for real-time multi-device propagation.
-- Firestore rules require household membership and protect household ownership/audit boundaries.
+- Added `Household`, `HouseholdMember`, and owner/member roles.
+- Added first-household setup, preferred household selection, and household switching.
+- Moved inventory to `households/{householdId}/items/{itemId}`.
+- Added item audit fields (`householdId`, `createdByUid`, `updatedByUid`, `updatedAt`).
+- Added Firestore snapshot subscriptions for real-time shared household inventory.
+- Tightened Firestore rules around household membership, owner administration, and item audit fields.
+- Added household serialization and role tests.
 
 Ubuntu validation:
 
@@ -101,44 +100,27 @@ Ubuntu validation:
 Repository integration:
 
 - Pull request #2 merged to `main` as `ccf57560b61ba8f2b11fe422d46dd39860fcb982`.
-- Added `docs/PHASE3_VALIDATION.md` with the validation record.
 
-## 2026-08-14 — Phase 4 household invitations — AWAITING RUNTIME VALIDATION
+## 2026-08-14 — Phase 4 household invitations — VALIDATED
 
 Branch: `phase4-invites`
 
-### Invite model and service
+Implemented:
 
-- Added `HouseholdInvite` with active/revoked status, creation/expiry timestamps and normalized share codes.
-- Invite codes are 12-character high-entropy values generated with `Random.secure()` from an ambiguity-reduced alphabet.
-- Invite documents are stored as `invites/{code}` so joining is a direct lookup rather than an enumerable code query.
-- Owners can create seven-day invite codes and revoke them.
-- Joining verifies authenticated user, code shape, invite status and expiry before writing membership.
-- Join transaction adds the caller to `memberUids`, creates `members/{uid}` with member role/invite provenance, and updates the caller's preferred household.
+- Added non-enumerable 12-character household invite codes.
+- Owners can create, copy, and revoke active invite codes.
+- Invite records carry household ID, creator UID, creation/expiry timestamps, and revoked state.
+- Authenticated users can join a household by a valid code from first-run setup or Settings.
+- Invite acceptance adds exactly the signed-in user as a `member`, updates household `memberUids`, and persists `currentHouseholdId` atomically.
+- Household state refreshes after a successful join so the joined household becomes immediately available/active.
+- Firestore rules allow invite reads by exact document ID for signed-in users, owner-only invite creation/revocation, and constrain invite-based household/member updates to the joining authenticated UID.
+- Added invite model normalization/expiry tests while retaining all prior household/product/inventory tests.
 
-### UI
+Ubuntu validation at branch HEAD `070520292497a23a800e9a5142e1a0791c761608`:
 
-- First-run household setup now supports either creating a household or joining with a 12-character code.
-- Added Household Sharing screen.
-- Owners can create, copy and revoke an invite code.
-- Any signed-in user can join another household by code from Settings.
+- `flutter test --no-pub`: **11 passed**.
+- `dart analyze`: **No issues found**.
+- `flutter build linux --no-pub`: **success**.
+- Working tree: **clean**.
 
-### Security rules
-
-- Signed-in users may fetch a specific active/unexpired invite they already possess; invite collection listing is denied.
-- Invite creation/update/revoke requires household owner role.
-- Self-join household updates may alter only `memberUids`, `updatedAt`, and `lastJoinInviteId`.
-- Self-join requires a valid active/unexpired invite for that exact household and permits exactly one new UID: the caller.
-- Member creation during join requires caller UID, `member` role and matching valid invite provenance.
-- Household ownership cannot be changed through the invite path.
-
-### Tests
-
-- Existing 9 tests retained.
-- Added invite-code normalization coverage.
-- Added invite active/revoked lifecycle coverage.
-- Expected suite size at the next checkpoint: **11 tests**.
-
-### Current runtime boundary
-
-Phase 4 now changes Firestore transactions/rules, first-run routing UI, settings navigation, household state and test imports. No dependency changed. Flutter tests, analyzer and Linux compile are required before invitations are merged or Phase 5 notification rules are layered on top.
+Result: Phase 4 invitation/join source is accepted for integration. Firestore rule behavior still requires emulator-backed authorization tests before production deployment; that security test harness is scheduled as part of the backend phase before release.
