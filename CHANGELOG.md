@@ -99,24 +99,46 @@ Branch: `phase6-notification-backend`.
 
 Result: Phase 6 source is integrated. Real Firebase deployment remains separate because it requires a configured FreshFlag Firebase project, billing/runtime access, and production platform credentials.
 
-## 2026-08-14 — Phase 7 notification deep linking — IN PROGRESS
-
-Branch: `phase7-notification-deeplinks`.
+## 2026-08-14 — Phase 7 notification deep linking — VALIDATED SOURCE
 
 - Added a narrow `NotificationTarget` parser that accepts only expiry-reminder payloads containing both `householdId` and `itemId`; Phase 6 `expiry_reminder` payloads remain backward compatible.
-- New backend notifications now emit the canonical `type: expiry` payload while the client continues accepting the Phase 6 legacy type during migration.
 - FCM preserves terminated-launch notification targets until the authenticated app shell is ready and emits background notification-tap targets to the live shell.
 - FCM message/tap listeners are installed before initial token lookup so an early Apple/APNs token timing failure cannot disable deep-link handling for the process lifetime.
-- Enabled foreground Apple notification presentation so physical-device testing can verify foreground, background, and terminated tap behavior.
-- Notification taps verify the target household is one the signed-in user can access, switch households when required, bind the scoped inventory, fetch the exact item, switch to the Inventory tab, and open the item detail screen.
+- Enabled foreground Apple notification presentation for physical-device validation.
+- Notification taps verify target household access, switch households when required, bind scoped inventory, fetch the exact item, switch to Inventory, and open a reusable item-detail screen.
 - Missing/deleted items and lost household access degrade to a user-visible message rather than an invalid route.
-- Added a reusable item detail view and made ordinary inventory rows open the same view; users can mark an item consumed or restore it from there.
-- Added notification payload parsing tests for current, legacy, unrelated, and incomplete payloads.
+- Inventory rows reuse the same item-detail view; users can mark items consumed or restore them there.
+- Added notification payload parser tests for canonical, legacy, unrelated, and incomplete payloads.
+- CI was changed to PR-only plus manual dispatch with path filters so feature-branch pushes do not consume private-repo Actions runs.
 
-### CI cost-control decision
+Validation/integration:
 
-- Feature work is accumulated before a PR is opened; CI is not used as an edit-by-edit feedback loop.
-- Flutter and Backend workflows are PR-only (plus manual dispatch) with path filters, so ordinary feature-branch pushes do not trigger private-repo Actions runs.
-- Phase 7 will use one coherent PR validation cycle after source review; because this slice touches both Flutter deep-link code and the backend payload type, both relevant workflows are expected to run once.
+- PR #6 (`feature/notification-deep-links`) passed Flutter CI run `31815377661` and Backend CI run `31815377826`, then merged to `main` as `601791f696fa657ada927bb8febf8dc0d79af606`.
+- Follow-up PR #7 canonicalized newly emitted backend payloads to `type: expiry` while preserving legacy client parsing.
+- PR #7 triggered Backend CI only; Functions tests and Firestore Emulator authorization tests passed in run `31818961866`.
+- PR #7 merged to `main` as `6769dbda94dd2ee8b658777769e2fcd9cf64e263`.
 
-Current checkpoint: source review is complete except for final branch-diff inspection. Open one Phase 7 PR, validate it once, then merge if green. Physical iPhone notification-tap validation remains a Phase 8/TestFlight requirement.
+Result: Phase 7 source is complete. Foreground/background/terminated notification taps still require physical-iPhone validation in Phase 8.
+
+## 2026-08-14 — Phase 8 iOS/TestFlight preparation — IN PROGRESS
+
+Branch: `phase8-testflight-prep`.
+
+### Documentation/source-of-truth baseline
+
+- Restored `PROJECT_CONTEXT.md` to the repository as the product source of truth, updated to reflect the current phase map and preserved product constraints.
+- Added `ARCHITECTURE.md` describing the implemented client, household, security, notification, backend, CI, and remaining iOS gates.
+- Added `THIRD_PARTY_NOTICES.md` covering StayFresh provenance, Open Food Facts external data, Flutter/Firebase dependencies, and GPL/AGPL reference-only projects.
+- Added `docs/testflight.md` with Firebase, Apple signing, Swift Package Manager, backend deployment, physical-device acceptance, App Store Connect, and TestFlight steps.
+
+### iOS audit findings
+
+- Xcode `PRODUCT_BUNDLE_IDENTIFIER` is still inherited as `com.example.stayfresh`.
+- `lib/firebase_options.dart` still contains inherited `stayfresh-36edf` values and placeholder iOS/macOS app IDs; production must use a FreshFlag-owned Firebase project.
+- `ios/Runner` currently contains no `GoogleService-Info.plist` and no Runner entitlements file.
+- The Xcode project has no existing Swift Package Manager package reference and no legacy CocoaPods `Podfile`.
+- Current Flutter guidance (3.44+) uses Swift Package Manager by default and migrates older iOS projects when run with modern Flutter/Xcode; this migration will be validated on macOS rather than hand-edited blindly.
+- Launcher icon generation still points to inherited `assets/images/logos/stayfresh.png`.
+- `flutter_local_notifications` and `timezone` have no remaining source references after backend reminders became authoritative and should be removed in the next dependency cleanup slice.
+
+Current checkpoint: perform source-only beta metadata/dependency/privacy cleanup without fabricating Firebase credentials or Apple signing values. Then use one relevant validation cycle before the macOS/Firebase runtime gate.
