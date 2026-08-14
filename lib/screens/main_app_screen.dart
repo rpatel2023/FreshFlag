@@ -38,9 +38,11 @@ class _MainAppScreenState extends State<MainAppScreen> {
     super.initState();
     _notificationSubscription = FCMService.instance.navigationTargets.listen(
       (target) {
-        final pending =
-            FCMService.instance.takePendingNavigationTarget() ?? target;
-        _openNotificationTarget(pending);
+        // The stream event is authoritative for live taps. Clearing the
+        // pending slot prevents the same target being replayed if the shell is
+        // rebuilt, without replacing this event with a newer queued target.
+        FCMService.instance.takePendingNavigationTarget();
+        _openNotificationTarget(target);
       },
     );
 
