@@ -51,8 +51,7 @@ class HouseholdService {
   }) async {
     final trimmedName = name.trim();
     final trimmedTimezone = timezone.trim();
-    if (trimmedName.isEmpty) throw ArgumentError('Household name is required');
-    if (trimmedTimezone.isEmpty) throw ArgumentError('Timezone is required');
+    _validateHouseholdSettings(trimmedName, trimmedTimezone);
 
     final uid = _uid;
     final now = DateTime.now().toUtc();
@@ -98,6 +97,41 @@ class HouseholdService {
     return household;
   }
 
+  Future<Household> updateHousehold(
+    String householdId, {
+    required String name,
+    required String timezone,
+  }) async {
+    final trimmedName = name.trim();
+    final trimmedTimezone = timezone.trim();
+    _validateHouseholdSettings(trimmedName, trimmedTimezone);
+
+    final ref = _households.doc(householdId);
+    final snapshot = await ref.get();
+    final data = snapshot.data();
+    if (data == null) throw StateError('Household not found');
+    if (data['ownerUid'] != _uid) {
+      throw StateError('Only the household owner can change household settings');
+    }
+
+    final updatedAt = DateTime.now().toUtc();
+    await ref.update({
+      'name': trimmedName,
+      'timezone': trimmedTimezone,
+      'updatedAt': updatedAt.toIso8601String(),
+    });
+
+    return Household.fromMap(
+      householdId,
+      {
+        ...data,
+        'name': trimmedName,
+        'timezone': trimmedTimezone,
+        'updatedAt': updatedAt.toIso8601String(),
+      },
+    );
+  }
+
   Stream<List<HouseholdMember>> watchMembers(String householdId) {
     return _households
         .doc(householdId)
@@ -129,13 +163,16 @@ class HouseholdService {
       throw StateError('The owner cannot remove themselves');
     }
 
-    final memberUids = List<String>.from(data['memberUids'] as List? ?? const []);
+    final memberUids = List<String>.from(
+      data['memberUids'] as List? ?? const [],
+    );
     if (!memberUids.contains(memberUid)) return;
 
     final now = DateTime.now().toUtc().toIso8601String();
     final batch = _firestore.batch();
     batch.update(householdRef, {
       'memberUids': FieldValue.arrayRemove([memberUid]),
+      'lastRemovedUid': memberUid,
       'updatedAt': now,
     });
     batch.delete(householdRef.collection('members').doc(memberUid));
@@ -154,7 +191,9 @@ class HouseholdService {
       );
     }
 
-    final memberUids = List<String>.from(data['memberUids'] as List? ?? const []);
+    final memberUids = List<String>.from(
+      data['memberUids'] as List? ?? const [],
+    );
     if (!memberUids.contains(uid)) return;
 
     final now = DateTime.now().toUtc().toIso8601String();
@@ -178,7 +217,9 @@ class HouseholdService {
   Future<void> setPreferredHousehold(String householdId) async {
     final household = await _households.doc(householdId).get();
     final data = household.data();
-    final members = List<String>.from(data?['memberUids'] as List? ?? const []);
+    final members = List<String>.from(
+      data?['memberUids'] as List? ?? const [],
+    );
     if (data == null || !members.contains(_uid)) {
       throw StateError('Current user is not a member of this household');
     }
@@ -199,6 +240,13 @@ class HouseholdService {
         .get();
     final data = doc.data();
     return data == null ? null : HouseholdMember.fromMap(doc.id, data);
+  }
+
+  void _validateHouseholdSettings(String name, String timezone) {
+    if (name.isEmpty) throw ArgumentError('Household name is required');
+    if (timezone.isEmpty || !timezone.contains('/')) {
+      throw ArgumentError('Use an IANA timezone such as America/Toronto');
+    }
   }
 
   List<NotificationRule> _defaultNotificationRules(DateTime now) => [
