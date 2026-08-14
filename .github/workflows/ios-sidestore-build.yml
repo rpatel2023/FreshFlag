@@ -8,12 +8,21 @@ permissions:
 
 jobs:
   build-unsigned-ipa:
-    runs-on: macos-latest
+    # FreshFlag's current FlutterFire/CocoaPods dependency set pulls
+    # BoringSSL-GRPC versions that fail under newer Xcode clang with
+    # `unsupported option '-G'`. macOS 14 retains Xcode 15.4, which is
+    # compatible with this dependency set and is sufficient for iOS 15+.
+    runs-on: macos-14
     timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select Xcode 15.4
+        run: |
+          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          xcodebuild -version
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -52,10 +61,9 @@ jobs:
           test "$BUNDLE_ID" = "com.rpatel2023.freshflag"
           test -f ios/Runner/GoogleService-Info.plist
 
-          # The legacy Xcode project does not yet copy this file as a target
-          # resource. FreshFlag initializes Firebase with explicit Dart options,
-          # but include the production plist in the final bundle as well so the
-          # native Firebase plugins have the canonical iOS configuration.
+          # FreshFlag initializes Firebase with explicit Dart options. Include
+          # the production plist in the final bundle as canonical native iOS
+          # configuration for Firebase plugins as well.
           cp ios/Runner/GoogleService-Info.plist "$APP/GoogleService-Info.plist"
 
           rm -rf "$OUT"
