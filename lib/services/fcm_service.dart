@@ -117,6 +117,27 @@ class FCMService {
     }
   }
 
+  Future<void> setPushEnabledForCurrentUser(bool enabled) async {
+    final uid = _auth.currentUserId;
+    if (uid == null) return;
+
+    if (enabled) {
+      final granted = await requestPermissions();
+      if (!granted) {
+        throw StateError('Notification permission was not granted');
+      }
+      await syncRegistrationForCurrentUser();
+    }
+
+    await _firestore.collection('users').doc(uid).set(
+      {
+        'notificationsEnabled': enabled,
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<void> removeCurrentUserRegistration() async {
     final uid = _auth.currentUserId;
     if (uid == null) return;
