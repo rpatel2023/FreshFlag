@@ -32,9 +32,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -49,17 +49,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.flag_outlined,
                           size: 56,
-                          color: AppTheme.primaryGreen,
+                          color: theme.colorScheme.primary,
                         ),
                         const SizedBox(height: AppTheme.spacingM),
                         Text(
                           'FreshFlag',
                           textAlign: TextAlign.center,
-                          style: AppTheme.headingLarge.copyWith(
-                            color: AppTheme.darkGreen,
+                          style: theme.textTheme.headlineLarge?.copyWith(
+                            color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -67,8 +67,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         Text(
                           'Sign in to your inventory',
                           textAlign: TextAlign.center,
-                          style: AppTheme.bodyMedium.copyWith(
-                            color: AppTheme.textLight,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: AppTheme.spacingXL),
@@ -126,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Text(
                             auth.error!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: AppTheme.errorRed),
+                            style: TextStyle(color: theme.colorScheme.error),
                           ),
                           const SizedBox(height: AppTheme.spacingM),
                         ],
