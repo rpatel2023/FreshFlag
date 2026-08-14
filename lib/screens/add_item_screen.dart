@@ -7,9 +7,14 @@ import '../viewmodels/grocery_viewmodel.dart';
 
 /// Adds one inventory item through the authoritative Firestore-backed ViewModel.
 class AddItemScreen extends StatefulWidget {
-  const AddItemScreen({super.key, this.initialBarcode});
+  const AddItemScreen({
+    super.key,
+    this.initialBarcode,
+    this.initialName,
+  });
 
   final String? initialBarcode;
+  final String? initialName;
 
   @override
   State<AddItemScreen> createState() => _AddItemScreenState();
@@ -34,6 +39,15 @@ class _AddItemScreenState extends State<AddItemScreen> {
     'Frozen',
     'Other',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final initialName = widget.initialName?.trim();
+    if (initialName != null && initialName.isNotEmpty) {
+      _nameController.text = initialName;
+    }
+  }
 
   @override
   void dispose() {
@@ -61,9 +75,25 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 if (widget.initialBarcode != null) ...[
                   Card(
                     child: ListTile(
-                      leading: const Icon(Icons.qr_code),
-                      title: const Text('Scanned barcode'),
-                      subtitle: SelectableText(widget.initialBarcode!),
+                      leading: Icon(
+                        widget.initialName == null
+                            ? Icons.qr_code
+                            : Icons.check_circle_outline,
+                        color: widget.initialName == null
+                            ? null
+                            : AppTheme.primaryGreen,
+                      ),
+                      title: Text(
+                        widget.initialName == null
+                            ? 'Scanned barcode'
+                            : 'Product recognized',
+                      ),
+                      subtitle: Text(
+                        widget.initialName == null
+                            ? widget.initialBarcode!
+                            : '${widget.initialName}\n${widget.initialBarcode}',
+                      ),
+                      isThreeLine: widget.initialName != null,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingM),
