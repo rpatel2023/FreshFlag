@@ -17,28 +17,46 @@ void main() {
         isConsumed: true,
       );
 
-      final restored = GroceryItem.fromMap(item.toMap());
+      final map = item.toMap();
+      final restored = GroceryItem.fromMap(map);
 
+      expect(map['expiryDate'], '2026-08-20');
       expect(restored, item);
       expect(restored.notes, 'Use first');
       expect(restored.isConsumed, isTrue);
       expect(restored.barcode, '0123456789012');
     });
 
-    test('supports legacy records missing optional state fields', () {
+    test('supports legacy timestamp expiry records and normalizes to date-only', () {
       final restored = GroceryItem.fromMap({
         'id': 'legacy-1',
         'name': 'Bread',
         'quantity': 1,
         'category': 'Bakery',
         'barcode': null,
-        'addedDate': '2026-08-14T00:00:00.000',
-        'expiryDate': '2026-08-17T00:00:00.000',
+        'addedDate': '2026-08-14T12:34:56.000',
+        'expiryDate': '2026-08-17T21:15:00.000',
         'imageUrl': null,
       });
 
+      expect(restored.expiryDate, DateTime(2026, 8, 17));
+      expect(restored.toMap()['expiryDate'], '2026-08-17');
       expect(restored.notes, isNull);
       expect(restored.isConsumed, isFalse);
+    });
+
+    test('normalizes constructor expiry values to calendar dates', () {
+      final item = GroceryItem(
+        id: 'date-only-1',
+        name: 'Yogurt',
+        quantity: 1,
+        category: 'Dairy',
+        addedDate: DateTime(2026, 8, 14, 18, 30),
+        expiryDate: DateTime(2026, 8, 20, 23, 59),
+      );
+
+      expect(item.expiryDate, DateTime(2026, 8, 20));
+      expect(item.toMap()['expiryDate'], '2026-08-20');
     });
 
     test('normalizes expiry calculations to calendar days', () {
