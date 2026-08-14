@@ -1,10 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:freshflag/models/grocery_item.dart';
+import 'package:freshflag/models/household.dart';
 import 'package:freshflag/models/product_lookup_result.dart';
 
 void main() {
   group('GroceryItem persistence', () {
     test('round-trips all persisted fields', () {
+      final updatedAt = DateTime.utc(2026, 8, 14, 14, 30);
       final item = GroceryItem(
         id: 'item-1',
         name: 'Milk',
@@ -16,6 +18,10 @@ void main() {
         imageUrl: 'https://example.test/milk.jpg',
         notes: 'Use first',
         isConsumed: true,
+        householdId: 'house-1',
+        createdByUid: 'owner-1',
+        updatedByUid: 'member-2',
+        updatedAt: updatedAt,
       );
 
       final map = item.toMap();
@@ -26,9 +32,13 @@ void main() {
       expect(restored.notes, 'Use first');
       expect(restored.isConsumed, isTrue);
       expect(restored.barcode, '0123456789012');
+      expect(restored.householdId, 'house-1');
+      expect(restored.createdByUid, 'owner-1');
+      expect(restored.updatedByUid, 'member-2');
+      expect(restored.updatedAt, updatedAt);
     });
 
-    test('supports legacy timestamp expiry records and normalizes to date-only', () {
+    test('supports legacy timestamp expiry records and missing audit fields', () {
       final restored = GroceryItem.fromMap({
         'id': 'legacy-1',
         'name': 'Bread',
@@ -44,6 +54,8 @@ void main() {
       expect(restored.toMap()['expiryDate'], '2026-08-17');
       expect(restored.notes, isNull);
       expect(restored.isConsumed, isFalse);
+      expect(restored.householdId, isNull);
+      expect(restored.createdByUid, isNull);
     });
 
     test('normalizes constructor expiry values to calendar dates', () {
@@ -77,16 +89,46 @@ void main() {
     });
   });
 
+  group('Household persistence', () {
+    test('round-trips household ownership and timezone', () {
+      final now = DateTime.utc(2026, 8, 14);
+      final household = Household(
+        id: 'house-1',
+        name: 'Patel Household',
+        ownerUid: 'owner-1',
+        memberUids: const ['owner-1', 'member-2'],
+        timezone: 'America/Toronto',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final restored = Household.fromMap(household.id, household.toMap());
+      expect(restored.id, 'house-1');
+      expect(restored.name, 'Patel Household');
+      expect(restored.ownerUid, 'owner-1');
+      expect(restored.memberUids, ['owner-1', 'member-2']);
+      expect(restored.timezone, 'America/Toronto');
+    });
+
+    test('round-trips member role', () {
+      final member = HouseholdMember(
+        uid: 'owner-1',
+        role: HouseholdRole.owner,
+        joinedAt: DateTime.utc(2026, 8, 14),
+      );
+      final restored = HouseholdMember.fromMap(member.uid, member.toMap());
+      expect(restored.uid, member.uid);
+      expect(restored.role, HouseholdRole.owner);
+      expect(restored.joinedAt, member.joinedAt);
+    });
+  });
+
   group('ProductLookupResult', () {
     test('parses the Open Food Facts fields FreshFlag needs', () {
       final product = ProductLookupResult.fromOpenFoodFactsProduct(
         '3017620422003',
-        {
-          'product_name': 'Hazelnut Spread',
-          'quantity': '400 g',
-        },
+        {'product_name': 'Hazelnut Spread', 'quantity': '400 g'},
       );
-
       expect(product.barcode, '3017620422003');
       expect(product.name, 'Hazelnut Spread');
       expect(product.quantityLabel, '400 g');
@@ -95,12 +137,8 @@ void main() {
     test('falls back to a generic product name', () {
       final product = ProductLookupResult.fromOpenFoodFactsProduct(
         '12345678',
-        {
-          'product_name': '   ',
-          'generic_name': 'Tomato sauce',
-        },
+        {'product_name': '   ', 'generic_name': 'Tomato sauce'},
       );
-
       expect(product.name, 'Tomato sauce');
       expect(product.quantityLabel, isNull);
     });
