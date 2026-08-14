@@ -1,14 +1,22 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:image_picker/image_picker.dart';
-import '../utils/app_theme.dart';
-import '../models/grocery_item.dart';
-import '../services/local_database_service.dart';
 
-/// Premium add item screen with elegant form design
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+
+import '../models/grocery_item.dart';
+import '../utils/app_theme.dart';
+import '../viewmodels/grocery_viewmodel.dart';
+
+/// Form used to create a single inventory item.
+///
+/// Firestore-backed [GroceryViewModel] is the only inventory write path. The
+/// optional barcode parameter is intentionally supported now so Phase 2 can
+/// connect barcode lookup without another navigation-contract rewrite.
 class AddItemScreen extends StatefulWidget {
-  const AddItemScreen({super.key});
+  const AddItemScreen({super.key, this.initialBarcode});
+
+  final String? initialBarcode;
 
   @override
   State<AddItemScreen> createState() => _AddItemScreenState();
@@ -19,13 +27,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _nameController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
   final _notesController = TextEditingController();
+  final _imagePicker = ImagePicker();
 
-  String _selectedCategory = 'Other';
-  DateTime? _selectedExpiryDate;
-  File? _selectedImage;
-  bool _isLoading = false;
-
-  final List<String> _categories = [
+  static const _categories = <String>[
     'Fruits',
     'Vegetables',
     'Dairy',
@@ -37,7 +41,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
     'Other',
   ];
 
-  final ImagePicker _imagePicker = ImagePicker();
+  String _selectedCategory = 'Other';
+  DateTime? _selectedExpiryDate;
+  File? _selectedImage;
+  bool _isSaving = false;
 
   @override
   void dispose() {
@@ -58,505 +65,236 @@ class _AddItemScreenState extends State<AddItemScreen> {
         ),
         backgroundColor: AppTheme.pureWhite,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppTheme.spacingL),
-        child: AnimationLimiter(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: AnimationConfiguration.toStaggeredList(
-              duration: const Duration(milliseconds: 375),
-              childAnimationBuilder: (widget) => SlideAnimation(
-                verticalOffset: 50.0,
-                child: FadeInAnimation(child: widget),
-              ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppTheme.spacingL),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Image Picker Section
                 _buildImagePicker(),
-
+                const SizedBox(height: AppTheme.spacingL),
+                if (widget.initialBarcode != null) ...[
+                  _buildBarcodeCard(widget.initialBarcode!),
+                  const SizedBox(height: AppTheme.spacingM),
+                ],
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Item name *',
+                    hintText: 'e.g. Fresh Tomatoes',
+                    prefixIcon: Icon(Icons.shopping_basket_outlined),
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Please enter an item name'
+                      : null,
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Category *',
+                    prefixIcon: Icon(Icons.category_outlined),
+                  ),
+                  items: _categories
+                      .map(
+                        (category) => DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _selectedCategory = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+                TextFormField(
+                  controller: _quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity *',
+                    prefixIcon: Icon(Icons.numbers),
+                  ),
+                  validator: (value) {
+                    final quantity = int.tryParse(value ?? '');
+                    return quantity == null || quantity <= 0
+                        ? 'Enter a quantity greater than zero'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+                _buildExpiryPicker(),
+                const SizedBox(height: AppTheme.spacingM),
+                TextFormField(
+                  controller: _notesController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes',
+                    prefixIcon: Icon(Icons.note_outlined),
+                    alignLabelWithHint: true,
+                  ),
+                ),
                 const SizedBox(height: AppTheme.spacingXL),
-
-                // Form Section
-                _buildForm(),
-
-                const SizedBox(height: AppTheme.spacingXL),
-
-                // Save Button
-                _buildSaveButton(),
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _saveItem,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: Text(_isSaving ? 'Saving…' : 'Save Item'),
+                  ),
+                ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBarcodeCard(String barcode) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingM),
+      decoration: BoxDecoration(
+        color: AppTheme.lightGray,
+        borderRadius: BorderRadius.circular(AppTheme.radiusM),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.qr_code, color: AppTheme.primaryGreen),
+          const SizedBox(width: AppTheme.spacingM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Barcode', style: AppTheme.bodySmall),
+                Text(
+                  barcode,
+                  style: AppTheme.bodyMedium.copyWith(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildImagePicker() {
-    return Container(
-      width: double.infinity,
-      height: 200,
-      decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusM),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: _selectedImage != null
-          ? Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                  child: Image.file(
-                    _selectedImage!,
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Positioned(
-                  top: AppTheme.spacingS,
-                  right: AppTheme.spacingS,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: AppTheme.pureWhite,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _selectedImage = null;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: AppTheme.spacingS,
-                  right: AppTheme.spacingS,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.edit,
-                        color: AppTheme.pureWhite,
-                        size: 20,
-                      ),
-                      onPressed: _pickImage,
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : InkWell(
-              onTap: _pickImage,
-              borderRadius: BorderRadius.circular(AppTheme.radiusM),
-              child: Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: AppTheme.mediumGray,
-                    style: BorderStyle.solid,
-                    width: 2,
-                  ),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: AppTheme.lightGreen,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.add_a_photo,
-                        color: AppTheme.primaryGreen,
-                        size: 30,
-                      ),
-                    ),
-                    const SizedBox(height: AppTheme.spacingM),
-                    Text(
-                      'Add Photo',
-                      style: AppTheme.headingSmall.copyWith(
-                        color: AppTheme.primaryGreen,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: AppTheme.spacingXS),
-                    Text(
-                      'Tap to add item photo (optional)',
-                      style: AppTheme.bodySmall.copyWith(
-                        color: AppTheme.textLight,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-
-  Widget _buildForm() {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      decoration: BoxDecoration(
-        color: AppTheme.pureWhite,
-        borderRadius: BorderRadius.circular(AppTheme.radiusM),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Item Name
-            Text(
-              'Item Details',
-              style: AppTheme.headingSmall.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppTheme.darkGreen,
-              ),
-            ),
-            const SizedBox(height: AppTheme.spacingL),
-
-            TextFormField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'Item Name *',
-                hintText: 'e.g., Fresh Tomatoes',
-                prefixIcon: const Icon(Icons.shopping_basket_outlined),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter item name';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: AppTheme.spacingM),
-
-            // Category and Quantity Row
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Category *',
-                      prefixIcon: Icon(Icons.category_outlined),
-                    ),
-                    items: _categories.map((category) {
-                      return DropdownMenuItem(
-                        value: category,
-                        child: Text(category),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCategory = value!;
-                      });
-                    },
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please select category';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: AppTheme.spacingM),
-                Expanded(
-                  child: TextFormField(
-                    controller: _quantityController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Quantity *',
-                      prefixIcon: Icon(Icons.numbers),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Required';
-                      }
-                      final quantity = int.tryParse(value);
-                      if (quantity == null || quantity <= 0) {
-                        return 'Invalid';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: AppTheme.spacingM),
-
-            // Expiry Date
-            InkWell(
-              onTap: _selectExpiryDate,
-              child: Container(
-                padding: const EdgeInsets.all(AppTheme.spacingM),
-                decoration: BoxDecoration(
-                  color: AppTheme.lightGray,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      color: AppTheme.textMedium,
-                    ),
-                    const SizedBox(width: AppTheme.spacingM),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Expiry Date *',
-                            style: AppTheme.bodySmall.copyWith(
-                              color: AppTheme.textMedium,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _selectedExpiryDate != null
-                                ? '${_selectedExpiryDate!.day}/${_selectedExpiryDate!.month}/${_selectedExpiryDate!.year}'
-                                : 'Select expiry date',
-                            style: AppTheme.bodyMedium.copyWith(
-                              color: _selectedExpiryDate != null
-                                  ? AppTheme.textDark
-                                  : AppTheme.textLight,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      Icons.arrow_drop_down,
-                      color: AppTheme.textMedium,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: AppTheme.spacingM),
-
-            // Notes
-            TextFormField(
-              controller: _notesController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Notes (Optional)',
-                hintText: 'Add any additional notes...',
-                prefixIcon: Icon(Icons.note_outlined),
-                alignLabelWithHint: true,
-              ),
-            ),
-          ],
+    return InkWell(
+      onTap: _pickImage,
+      borderRadius: BorderRadius.circular(AppTheme.radiusM),
+      child: Container(
+        height: 180,
+        decoration: BoxDecoration(
+          color: AppTheme.pureWhite,
+          borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          border: Border.all(color: AppTheme.mediumGray),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSaveButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _saveItem,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.primaryGreen,
-          foregroundColor: AppTheme.pureWhite,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTheme.radiusM),
-          ),
-          shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.3),
-        ),
-        child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.pureWhite),
-                ),
-              )
-            : Row(
+        child: _selectedImage == null
+            ? const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.save_outlined),
-                  const SizedBox(width: AppTheme.spacingS),
-                  Text(
-                    'Save Item',
-                    style: AppTheme.buttonText.copyWith(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  Icon(Icons.add_a_photo_outlined, size: 42),
+                  SizedBox(height: 8),
+                  Text('Add photo (optional)'),
                 ],
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                child: Image.file(_selectedImage!, fit: BoxFit.cover),
               ),
+      ),
+    );
+  }
+
+  Widget _buildExpiryPicker() {
+    final selected = _selectedExpiryDate;
+    final label = selected == null
+        ? 'Select expiry date *'
+        : '${selected.year}-${selected.month.toString().padLeft(2, '0')}-${selected.day.toString().padLeft(2, '0')}';
+
+    return OutlinedButton.icon(
+      onPressed: _selectExpiryDate,
+      icon: const Icon(Icons.calendar_today_outlined),
+      label: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(label),
       ),
     );
   }
 
   Future<void> _pickImage() async {
-    try {
-      final ImageSource? source = await showModalBottomSheet<ImageSource>(
-        context: context,
-        backgroundColor: AppTheme.pureWhite,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppTheme.radiusL),
-          ),
-        ),
-        builder: (context) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppTheme.spacingL),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.mediumGray,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: AppTheme.spacingL),
-                Text(
-                  'Select Image Source',
-                  style: AppTheme.headingSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: AppTheme.spacingL),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildImageSourceOption(
-                        icon: Icons.camera_alt,
-                        title: 'Camera',
-                        onTap: () => Navigator.pop(context, ImageSource.camera),
-                      ),
-                    ),
-                    const SizedBox(width: AppTheme.spacingM),
-                    Expanded(
-                      child: _buildImageSourceOption(
-                        icon: Icons.photo_library,
-                        title: 'Gallery',
-                        onTap: () =>
-                            Navigator.pop(context, ImageSource.gallery),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-
-      if (source != null) {
-        final XFile? pickedFile = await _imagePicker.pickImage(
-          source: source,
-          maxWidth: 1024,
-          maxHeight: 1024,
-          imageQuality: 85,
-        );
-
-        if (pickedFile != null) {
-          setState(() {
-            _selectedImage = File(pickedFile.path);
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick image: $e'),
-            backgroundColor: AppTheme.errorRed,
-          ),
-        );
-      }
-    }
-  }
-
-  Widget _buildImageSourceOption({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppTheme.radiusM),
-      child: Container(
-        padding: const EdgeInsets.all(AppTheme.spacingL),
-        decoration: BoxDecoration(
-          color: AppTheme.lightGray,
-          borderRadius: BorderRadius.circular(AppTheme.radiusM),
-        ),
-        child: Column(
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+            Expanded(
+              child: ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Camera'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
               ),
-              child: Icon(icon, color: AppTheme.primaryGreen, size: 24),
             ),
-            const SizedBox(height: AppTheme.spacingS),
-            Text(
-              title,
-              style: AppTheme.bodyMedium.copyWith(fontWeight: FontWeight.w500),
+            Expanded(
+              child: ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Gallery'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
             ),
           ],
         ),
       ),
     );
+
+    if (source == null) return;
+
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (picked != null && mounted) {
+        setState(() => _selectedImage = File(picked.path));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to select image: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _selectExpiryDate() async {
-    final DateTime? picked = await showDatePicker(
+    final now = DateTime.now();
+    final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 7)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(
-              context,
-            ).colorScheme.copyWith(primary: AppTheme.primaryGreen),
-          ),
-          child: child!,
-        );
-      },
+      initialDate: _selectedExpiryDate ?? now.add(const Duration(days: 7)),
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 10, now.month, now.day),
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() {
-        _selectedExpiryDate = picked;
+        _selectedExpiryDate = DateTime(picked.year, picked.month, picked.day);
       });
     }
   }
@@ -564,60 +302,48 @@ class _AddItemScreenState extends State<AddItemScreen> {
   Future<void> _saveItem() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedExpiryDate == null) {
+    final expiryDate = _selectedExpiryDate;
+    if (expiryDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an expiry date'),
-          backgroundColor: AppTheme.warningOrange,
-        ),
+        const SnackBar(content: Text('Please select an expiry date')),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isSaving = true);
+
+    final item = GroceryItem(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: _nameController.text.trim(),
+      quantity: int.parse(_quantityController.text),
+      category: _selectedCategory,
+      barcode: widget.initialBarcode,
+      addedDate: DateTime.now(),
+      expiryDate: expiryDate,
+      notes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
+    );
 
     try {
-      final item = GroceryItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: _nameController.text.trim(),
-        quantity: int.parse(_quantityController.text),
-        category: _selectedCategory,
-        addedDate: DateTime.now(),
-        expiryDate: _selectedExpiryDate!,
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
-        // TODO: Upload image to Supabase and get URL
-        imageUrl: null,
-      );
-
-      await LocalDatabaseService.addGroceryItem(item);
+      final inventory = context.read<GroceryViewModel>();
+      await inventory.addItemWithImage(item, _selectedImage);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${item.name} added successfully!'),
-            backgroundColor: AppTheme.successGreen,
-          ),
+          SnackBar(content: Text('${item.name} added successfully')),
         );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save item: $e'),
-            backgroundColor: AppTheme.errorRed,
-          ),
+          SnackBar(content: Text('Failed to save item: $e')),
         );
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isSaving = false);
       }
     }
   }
