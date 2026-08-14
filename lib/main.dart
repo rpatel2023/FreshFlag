@@ -3,18 +3,14 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 import 'firebase_options.dart';
 import 'screens/auth/auth_wrapper.dart';
-import 'screens/auth/login_screen.dart';
-import 'screens/home_screen.dart';
 import 'services/fcm_service.dart';
 import 'services/firebase_auth_service.dart';
 import 'services/local_database_service.dart';
 import 'services/notification_service.dart';
 import 'theme/theme_provider.dart';
-import 'utils/env_config.dart';
 import 'viewmodels/auth_viewmodel.dart';
 import 'viewmodels/grocery_viewmodel.dart';
 
@@ -45,7 +41,7 @@ Future<void> _initializeApp() async {
   try {
     await LocalDatabaseService.initialize();
   } catch (e) {
-    debugPrint('Local database initialization failed: $e');
+    debugPrint('Local settings/cache initialization failed: $e');
   }
 
   try {
@@ -67,17 +63,6 @@ Future<void> _initializeApp() async {
   }
 
   try {
-    if (EnvConfig.isConfigured) {
-      await supabase.Supabase.initialize(
-        url: EnvConfig.supabaseUrl,
-        anonKey: EnvConfig.supabaseAnonKey,
-      );
-    }
-  } catch (e) {
-    debugPrint('Supabase initialization failed: $e');
-  }
-
-  try {
     await FCMService.instance.initialize();
   } catch (e) {
     debugPrint('FCM service initialization failed: $e');
@@ -89,15 +74,15 @@ Future<void> _initializeApp() async {
     debugPrint('Notification service initialization failed: $e');
   }
 
-  runApp(const StayFreshApp());
+  runApp(const FreshFlagApp());
 }
 
 void main() async {
   await _initializeApp();
 }
 
-class StayFreshApp extends StatelessWidget {
-  const StayFreshApp({super.key});
+class FreshFlagApp extends StatelessWidget {
+  const FreshFlagApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -113,14 +98,13 @@ class StayFreshApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp(
-            title: 'StayFresh',
+            title: 'FreshFlag',
             debugShowCheckedModeBanner: false,
             theme: ThemeProvider.lightTheme,
+            darkTheme: ThemeProvider.darkTheme,
+            themeMode:
+                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             home: const AuthWrapper(),
-            routes: {
-              '/login': (context) => const LoginScreen(),
-              '/home': (context) => const HomeScreen(),
-            },
           );
         },
       ),
