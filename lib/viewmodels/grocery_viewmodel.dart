@@ -19,7 +19,8 @@ class GroceryViewModel extends ChangeNotifier {
   String? _householdId;
   StreamSubscription<List<GroceryItem>>? _inventorySubscription;
 
-  final FirebaseFirestoreService _firestore = FirebaseFirestoreService.instance;
+  final FirebaseFirestoreService _firestore =
+      FirebaseFirestoreService.instance;
   final FirebaseAuthService _auth = FirebaseAuthService.instance;
 
   List<GroceryItem> get items => List.unmodifiable(_items);
@@ -29,15 +30,23 @@ class GroceryViewModel extends ChangeNotifier {
   String? get householdId => _householdId;
 
   List<GroceryItem> get expiredItems => _items
-      .where((item) => !item.isConsumed && item.expiryStatus == ExpiryStatus.expired)
+      .where(
+        (item) =>
+            !item.isConsumed && item.expiryStatus == ExpiryStatus.expired,
+      )
       .toList();
 
   List<GroceryItem> get expiringSoonItems => _items
-      .where((item) => !item.isConsumed && item.expiryStatus == ExpiryStatus.expiringSoon)
+      .where(
+        (item) =>
+            !item.isConsumed && item.expiryStatus == ExpiryStatus.expiringSoon,
+      )
       .toList();
 
   List<GroceryItem> get freshItems => _items
-      .where((item) => !item.isConsumed && item.expiryStatus == ExpiryStatus.fresh)
+      .where(
+        (item) => !item.isConsumed && item.expiryStatus == ExpiryStatus.fresh,
+      )
       .toList();
 
   Future<void> bindHousehold(String householdId) async {
@@ -136,13 +145,27 @@ class GroceryViewModel extends ChangeNotifier {
     return null;
   }
 
+  Future<GroceryItem?> fetchItem(String itemId) async {
+    _requireContext('open inventory');
+    try {
+      return await _firestore.getGroceryItem(itemId);
+    } catch (e) {
+      _setError('Failed to load item: $e');
+      rethrow;
+    }
+  }
+
   List<GroceryItem> searchItems(String query) {
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) return items;
-    return _items.where((item) =>
-        item.name.toLowerCase().contains(normalized) ||
-        item.category.toLowerCase().contains(normalized) ||
-        (item.barcode?.toLowerCase().contains(normalized) ?? false)).toList();
+    return _items
+        .where(
+          (item) =>
+              item.name.toLowerCase().contains(normalized) ||
+              item.category.toLowerCase().contains(normalized) ||
+              (item.barcode?.toLowerCase().contains(normalized) ?? false),
+        )
+        .toList();
   }
 
   void clearError() => _clearError();
@@ -160,27 +183,36 @@ class GroceryViewModel extends ChangeNotifier {
   }
 
   String _requireContext(String operation) {
-    if (!_auth.isSignedIn) throw StateError('Sign in is required to $operation');
+    if (!_auth.isSignedIn) {
+      throw StateError('Sign in is required to $operation');
+    }
     final householdId = _householdId;
-    if (householdId == null) throw StateError('Select a household to $operation');
+    if (householdId == null) {
+      throw StateError('Select a household to $operation');
+    }
     return householdId;
   }
 
-  void _sortItems() => _items.sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
+  void _sortItems() =>
+      _items.sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
+
   void _setLoading(bool value) {
     if (_isLoading == value) return;
     _isLoading = value;
     notifyListeners();
   }
+
   void _setUploading(bool value) {
     if (_isUploading == value) return;
     _isUploading = value;
     notifyListeners();
   }
+
   void _setError(String message) {
     _error = message;
     notifyListeners();
   }
+
   void _clearError() {
     if (_error == null) return;
     _error = null;
