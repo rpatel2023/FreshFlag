@@ -1,44 +1,9 @@
-import 'package:hive/hive.dart';
-
-part 'grocery_item.g.dart';
-
-/// Model representing a grocery item in FreshFlag.
+/// Grocery inventory item persisted in Firestore.
 ///
-/// Expiry is a calendar date, not a moment in time. The public field remains a
-/// [DateTime] for compatibility with the inherited UI/Hive adapter, but it is
-/// normalized to local midnight and serialized as `YYYY-MM-DD`.
-@HiveType(typeId: 1)
-class GroceryItem extends HiveObject {
-  @HiveField(0)
-  String id;
-
-  @HiveField(1)
-  String name;
-
-  @HiveField(2)
-  int quantity;
-
-  @HiveField(3)
-  String category;
-
-  @HiveField(4)
-  String? barcode;
-
-  @HiveField(5)
-  DateTime addedDate;
-
-  @HiveField(6)
-  DateTime expiryDate;
-
-  @HiveField(7)
-  String? imageUrl;
-
-  @HiveField(8)
-  String? notes;
-
-  @HiveField(9)
-  bool isConsumed;
-
+/// Expiry is a calendar date. It is normalized to local midnight in memory and
+/// serialized as `YYYY-MM-DD` so timezone/time-of-day cannot change which day
+/// the food is considered to expire.
+class GroceryItem {
   GroceryItem({
     required this.id,
     required this.name,
@@ -50,7 +15,18 @@ class GroceryItem extends HiveObject {
     this.imageUrl,
     this.notes,
     this.isConsumed = false,
-  }) : expiryDate = _dateOnly(expiryDate);
+  }) : expiryDate = normalizeDateOnly(expiryDate);
+
+  final String id;
+  final String name;
+  final int quantity;
+  final String category;
+  final String? barcode;
+  final DateTime addedDate;
+  final DateTime expiryDate;
+  final String? imageUrl;
+  final String? notes;
+  final bool isConsumed;
 
   Map<String, dynamic> toMap() {
     return {
@@ -60,7 +36,7 @@ class GroceryItem extends HiveObject {
       'category': category,
       'barcode': barcode,
       'addedDate': addedDate.toIso8601String(),
-      'expiryDate': _formatDateOnly(expiryDate),
+      'expiryDate': formatDateOnly(expiryDate),
       'imageUrl': imageUrl,
       'notes': notes,
       'isConsumed': isConsumed,
@@ -71,13 +47,11 @@ class GroceryItem extends HiveObject {
     return GroceryItem(
       id: map['id'] as String,
       name: map['name'] as String,
-      quantity: map['quantity'] as int,
+      quantity: (map['quantity'] as num).toInt(),
       category: map['category'] as String,
       barcode: map['barcode'] as String?,
       addedDate: DateTime.parse(map['addedDate'] as String),
-      // DateTime.parse also accepts inherited full ISO timestamp records. The
-      // constructor normalizes both old and new representations to a date.
-      expiryDate: DateTime.parse(map['expiryDate'] as String),
+      expiryDate: parseDateOnly(map['expiryDate'] as String),
       imageUrl: map['imageUrl'] as String?,
       notes: map['notes'] as String?,
       isConsumed: map['isConsumed'] as bool? ?? false,
@@ -117,7 +91,7 @@ class GroceryItem extends HiveObject {
 
   int get daysUntilExpiry {
     final now = DateTime.now();
-    final today = _dateOnly(now);
+    final today = normalizeDateOnly(now);
     return expiryDate.difference(today).inDays;
   }
 
@@ -131,21 +105,28 @@ class GroceryItem extends HiveObject {
     return ExpiryStatus.fresh;
   }
 
-  static DateTime _dateOnly(DateTime value) =>
+  static DateTime normalizeDateOnly(DateTime value) =>
       DateTime(value.year, value.month, value.day);
 
-  static String _formatDateOnly(DateTime value) {
-    final year = value.year.toString().padLeft(4, '0');
-    final month = value.month.toString().padLeft(2, '0');
-    final day = value.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
+  /// Accepts current `YYYY-MM-DD` values and inherited full ISO timestamps.
+  static DateTime parseDateOnly(String value) {
+    final parsed = DateTime.parse(value);
+    return normalizeDateOnly(parsed);
+  }
+
+  static String formatDateOnly(DateTime value) {
+    final date = normalizeDateOnly(value);
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 
   @override
   String toString() {
-    return 'GroceryItem(id: $id, name: $name, quantity: $quantity, category: $category, '
-        'barcode: $barcode, addedDate: $addedDate, expiryDate: $expiryDate, '
-        'imageUrl: $imageUrl, notes: $notes, isConsumed: $isConsumed)';
+    return 'GroceryItem(id: $id, name: $name, quantity: $quantity, '
+        'category: $category, barcode: $barcode, addedDate: $addedDate, '
+        'expiryDate: ${formatDateOnly(expiryDate)}, imageUrl: $imageUrl, '
+        'notes: $notes, isConsumed: $isConsumed)';
   }
 
   @override
@@ -179,8 +160,4 @@ class GroceryItem extends HiveObject {
       );
 }
 
-enum ExpiryStatus {
-  fresh,
-  expiringSoon,
-  expired,
-}
+enum ExpiryStatus { fresh, expiringSoon, expired }
