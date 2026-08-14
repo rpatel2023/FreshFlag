@@ -270,3 +270,5 @@ function chunk<T>(values: T[], size: number): T[][] {
   }
   return result;
 }
+
+export {lookupProduct} from './product_lookup.js';
