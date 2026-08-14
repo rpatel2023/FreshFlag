@@ -22,6 +22,15 @@ class InviteService {
     return uid;
   }
 
+  String? get _displayName {
+    final user = _auth.currentUser;
+    final name = user?.displayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final email = user?.email?.trim();
+    if (email == null || email.isEmpty) return null;
+    return email.split('@').first;
+  }
+
   Future<HouseholdInvite> createInvite(
     String householdId, {
     Duration lifetime = const Duration(days: 7),
@@ -101,6 +110,7 @@ class InviteService {
       'role': HouseholdRole.member.name,
       'joinedAt': joinedAt.toIso8601String(),
       'inviteId': code,
+      if (_displayName?.isNotEmpty == true) 'displayName': _displayName,
     });
     batch.set(
       userRef,
