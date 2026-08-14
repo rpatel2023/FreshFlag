@@ -87,7 +87,7 @@ export const lookupProduct = onRequest(
       'code,product_name,generic_name,abbreviated_product_name,quantity,brands,image_front_small_url,image_front_url,image_url',
     );
 
-    let upstream: globalThis.Response;
+    let upstream: Awaited<ReturnType<typeof fetch>>;
     try {
       upstream = await fetch(url, {
         headers: {
