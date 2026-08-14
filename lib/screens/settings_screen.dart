@@ -3,11 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../services/fcm_service.dart';
 import '../services/firebase_auth_service.dart';
-import '../services/local_database_service.dart';
 import '../theme/theme_provider.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/household_viewmodel.dart';
 import 'household_invite_screen.dart';
+import 'household_members_screen.dart';
 import 'notification_rules_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -18,8 +18,15 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notificationsEnabled = LocalDatabaseService.notificationsEnabled;
+  bool _notificationsEnabled = false;
+  bool _loadingNotificationState = true;
   bool _updatingNotifications = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +63,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: Text(current.name),
                     subtitle: Text(
                       '${current.timezone} • ${household.isOwner ? 'Owner' : 'Member'}',
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.people_outline),
+                    title: const Text('Household members'),
+                    subtitle: Text(
+                      household.isOwner
+                          ? 'View members or remove access'
+                          : 'View members or leave this household',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const HouseholdMembersScreen(),
+                      ),
                     ),
                   ),
                   ListTile(
@@ -127,9 +149,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 SwitchListTile(
                   title: const Text('Push notifications'),
-                  subtitle: const Text('Receive household expiry reminders'),
+                  subtitle: Text(
+                    _loadingNotificationState
+                        ? 'Checking notification permission…'
+                        : _notificationsEnabled
+                            ? 'Household expiry reminders are enabled'
+                            : 'Enable to receive household expiry reminders',
+                  ),
                   value: _notificationsEnabled,
-                  onChanged: _updatingNotifications ? null : _setNotificationsEnabled,
+                  onChanged: _loadingNotificationState || _updatingNotifications
+                      ? null
+                      : _setNotificationsEnabled,
                 ),
                 SwitchListTile(
                   title: const Text('Dark mode'),
@@ -161,15 +191,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _loadNotificationState() async {
+    final enabled = await FCMService.instance.syncPushPreferenceForCurrentUser();
+    if (!mounted) return;
+    setState(() {
+      _notificationsEnabled = enabled;
+      _loadingNotificationState = false;
+    });
+  }
+
   Future<void> _setNotificationsEnabled(bool value) async {
     setState(() => _updatingNotifications = true);
     try {
       await FCMService.instance.setPushEnabledForCurrentUser(value);
-      await LocalDatabaseService.setNotificationsEnabled(value);
       if (!mounted) return;
       setState(() => _notificationsEnabled = value);
     } catch (e) {
       if (!mounted) return;
+      setState(() => _notificationsEnabled = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not update notifications: $e')),
       );
