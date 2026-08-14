@@ -74,6 +74,8 @@ class ItemDetailScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: AppTheme.spacingL),
+                        if (item.brand?.trim().isNotEmpty == true)
+                          _DetailRow(label: 'Brand', value: item.brand!),
                         _DetailRow(
                           label: 'Expiry date',
                           value: GroceryItem.formatDateOnly(item.expiryDate),
