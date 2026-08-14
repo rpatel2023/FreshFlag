@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,9 +6,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/notification_target.dart';
 import 'firebase_auth_service.dart';
 
-/// Client-side Firebase Cloud Messaging registration plumbing.
+/// Client-side Firebase Cloud Messaging registration and tap plumbing.
 ///
 /// FreshFlag never sends FCM messages from the client. Each app installation
 /// owns a stable local device ID; its current FCM registration token is stored
@@ -23,18 +25,38 @@ class FCMService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuthService _auth = FirebaseAuthService.instance;
+  final StreamController<NotificationTarget> _navigationController =
+      StreamController<NotificationTarget>.broadcast();
 
   String? _currentToken;
   bool _isInitialized = false;
+  NotificationTarget? _pendingNavigationTarget;
 
   String? get currentToken => _currentToken;
   bool get isInitialized => _isInitialized;
+  Stream<NotificationTarget> get navigationTargets =>
+      _navigationController.stream;
+
+  NotificationTarget? takePendingNavigationTarget() {
+    final target = _pendingNavigationTarget;
+    _pendingNavigationTarget = null;
+    return target;
+  }
 
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
-      await requestPermissions();
+      if (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.iOS ||
+              defaultTargetPlatform == TargetPlatform.macOS)) {
+        await _fcm.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
+
       _currentToken = await _fcm.getToken();
 
       _fcm.onTokenRefresh.listen((token) async {
@@ -47,13 +69,14 @@ class FCMService {
         debugPrint('Foreground FCM message: ${message.messageId}');
       });
 
-      FirebaseMessaging.onMessageOpenedApp.listen((message) {
-        debugPrint('Opened from FCM message: ${message.messageId}');
-        // Phase 7 adds notification deep linking.
-      });
+      FirebaseMessaging.onMessageOpenedApp.listen(_queueNavigationFromMessage);
 
       final initialMessage = await _fcm.getInitialMessage();
       if (initialMessage != null) {
+        final target = NotificationTarget.fromData(initialMessage.data);
+        if (target != null) {
+          _pendingNavigationTarget = target;
+        }
         debugPrint('Started from FCM message: ${initialMessage.messageId}');
       }
 
@@ -156,6 +179,13 @@ class FCMService {
     }
   }
 
+  void _queueNavigationFromMessage(RemoteMessage message) {
+    final target = NotificationTarget.fromData(message.data);
+    if (target == null) return;
+    _pendingNavigationTarget = target;
+    _navigationController.add(target);
+  }
+
   Future<String> _getOrCreateDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
     final existing = prefs.getString(_deviceIdPreferenceKey);
@@ -163,7 +193,9 @@ class FCMService {
 
     final random = Random.secure();
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-    final id = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    final id = bytes
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
     await prefs.setString(_deviceIdPreferenceKey, id);
     return id;
   }
