@@ -236,7 +236,7 @@ Branch: `feature/discord-reminders`.
 
 Result: Discord reminder fallback and app-wide dark mode are integrated and source-validated. Real Discord delivery still requires the FreshFlag Firebase backend to be deployed and a household Discord webhook to be configured; iPhone/SideStore validation remains part of the external deployment phase.
 
-## 2026-08-14 — Discord per-user delivery redesign — IN PROGRESS
+## 2026-08-14 — Discord per-user delivery redesign — VALIDATED SOURCE
 
 Branch: `feature/per-user-discord`.
 
@@ -267,4 +267,11 @@ Branch: `feature/per-user-discord`.
 - Moved the Discord Settings entry from household administration into the personal preferences card beside push notifications and dark mode.
 - Updated `ARCHITECTURE.md` and `PROJECT_CONTEXT.md` so per-user Discord is now the authoritative product/technical design.
 
-Current checkpoint: per-user Discord source conversion is complete. No dependency or generated-file changes were introduced. Next validation should be one coherent PR so Flutter compile/tests/analyzer/build, Functions TypeScript tests, and Firestore Emulator authorization tests all verify the redesign once.
+### PR #10 validation and integration
+
+- PR #10 (`Make Discord reminders per user`) validated the redesign without any dependency/generated-file changes.
+- Backend CI run `31829908789`: **success** — Functions TypeScript build/tests and Firestore Emulator authorization tests both passed.
+- Flutter CI run `31829908749`: **success** — dependency resolution and lockfile reproducibility passed, **21 tests** passed, analyzer passed, and Linux release build succeeded.
+- PR #10 merged to `main` as `dc522d4d2fb1bd9fd9cc8f961767c707c36c74b5`.
+
+Result: per-user Discord reminder delivery is integrated and source-validated. Real delivery still requires deployment of the FreshFlag Firebase backend plus each user's personal Discord webhook configuration; no household-level Discord setup is required.
