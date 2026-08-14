@@ -101,10 +101,11 @@ Result: Phase 6 source is integrated. Real Firebase deployment remains separate 
 
 ## 2026-08-14 — Phase 7 notification deep linking — IN PROGRESS
 
-Branch: `feature/notification-deep-links`.
+Branch: `phase7-notification-deeplinks`.
 
 - Added a narrow `NotificationTarget` parser that accepts only expiry-reminder payloads containing both `householdId` and `itemId`; Phase 6 `expiry_reminder` payloads remain backward compatible.
-- FCM now preserves terminated-launch notification targets until the authenticated app shell is ready and emits background notification-tap targets to the live shell.
+- New backend notifications now emit the canonical `type: expiry` payload while the client continues accepting the Phase 6 legacy type during migration.
+- FCM preserves terminated-launch notification targets until the authenticated app shell is ready and emits background notification-tap targets to the live shell.
 - FCM message/tap listeners are installed before initial token lookup so an early Apple/APNs token timing failure cannot disable deep-link handling for the process lifetime.
 - Enabled foreground Apple notification presentation so physical-device testing can verify foreground, background, and terminated tap behavior.
 - Notification taps verify the target household is one the signed-in user can access, switch households when required, bind the scoped inventory, fetch the exact item, switch to the Inventory tab, and open the item detail screen.
@@ -114,8 +115,8 @@ Branch: `feature/notification-deep-links`.
 
 ### CI cost-control decision
 
-- Feature work now uses `feature/...` branches that do not trigger push CI.
-- Flutter and Backend workflows are being changed to PR-only validation with path filters plus manual dispatch.
-- The intent is one relevant validation cycle after a coherent branch is ready, rather than Actions runs after every private-repo commit or running the backend emulator for client-only changes.
+- Feature work is accumulated before a PR is opened; CI is not used as an edit-by-edit feedback loop.
+- Flutter and Backend workflows are PR-only (plus manual dispatch) with path filters, so ordinary feature-branch pushes do not trigger private-repo Actions runs.
+- Phase 7 will use one coherent PR validation cycle after source review; because this slice touches both Flutter deep-link code and the backend payload type, both relevant workflows are expected to run once.
 
-Current checkpoint: complete source review, then open one Phase 7 PR and use its relevant CI result as the merge gate. Physical iPhone notification-tap validation remains a Phase 8/TestFlight requirement.
+Current checkpoint: source review is complete except for final branch-diff inspection. Open one Phase 7 PR, validate it once, then merge if green. Physical iPhone notification-tap validation remains a Phase 8/TestFlight requirement.
