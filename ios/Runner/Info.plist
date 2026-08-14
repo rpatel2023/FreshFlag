@@ -26,8 +26,6 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>FreshFlag uses the camera to scan food product barcodes.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>FreshFlag can use a selected photo for profile or item imagery.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
