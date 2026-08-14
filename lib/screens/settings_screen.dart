@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -25,7 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadNotificationState();
+    unawaited(_loadNotificationState());
   }
 
   @override
@@ -64,6 +66,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: Text(
                       '${current.timezone} • ${household.isOwner ? 'Owner' : 'Member'}',
                     ),
+                    trailing: household.isOwner
+                        ? IconButton(
+                            tooltip: 'Edit household',
+                            onPressed: household.isLoading
+                                ? null
+                                : () => _editHousehold(
+                                      context,
+                                      current.name,
+                                      current.timezone,
+                                    ),
+                            icon: const Icon(Icons.edit_outlined),
+                          )
+                        : null,
                   ),
                   ListTile(
                     leading: const Icon(Icons.people_outline),
@@ -217,6 +232,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _editHousehold(
+    BuildContext context,
+    String currentName,
+    String currentTimezone,
+  ) async {
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: currentName);
+    final timezoneController = TextEditingController(text: currentTimezone);
+
+    final input = await showDialog<_HouseholdSettingsInput>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Household settings'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(labelText: 'Household name'),
+                validator: (value) => (value?.trim().isEmpty ?? true)
+                    ? 'Enter a household name'
+                    : null,
+              ),
+              const SizedBox(height: AppTheme.spacingM),
+              TextFormField(
+                controller: timezoneController,
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  labelText: 'IANA timezone',
+                  helperText: 'For example America/Toronto',
+                ),
+                validator: (value) {
+                  final timezone = value?.trim() ?? '';
+                  return timezone.isEmpty || !timezone.contains('/')
+                      ? 'Enter a timezone such as America/Toronto'
+                      : null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(
+                dialogContext,
+                _HouseholdSettingsInput(
+                  nameController.text.trim(),
+                  timezoneController.text.trim(),
+                ),
+              );
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    nameController.dispose();
+    timezoneController.dispose();
+    if (input == null || !context.mounted) return;
+
+    try {
+      await context.read<HouseholdViewModel>().updateCurrentHousehold(
+            name: input.name,
+            timezone: input.timezone,
+          );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update household: $e')),
+      );
+    }
+  }
+
   Future<void> _signOut(BuildContext context) async {
     try {
       await context.read<FirebaseAuthService>().signOut();
@@ -227,4 +325,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
   }
+}
+
+class _HouseholdSettingsInput {
+  const _HouseholdSettingsInput(this.name, this.timezone);
+
+  final String name;
+  final String timezone;
 }
