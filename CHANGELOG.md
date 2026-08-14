@@ -15,24 +15,22 @@ This file is the persistent project progress log. Update it after every importan
 - Web build failed because inherited FlutterFire web packages are incompatible with the current Dart/Flutter JS interop APIs.
 - Android build was not tested because Android SDK is not installed.
 - iOS runtime build remains unavailable from Ubuntu.
-- `flutter pub get` on the imported source rewrote dependency resolution; those audit-induced changes were restored and not accepted as baseline changes.
 - Initial `dart analyze`: 30 issues.
-- Initial test file was empty and `flutter test` failed because there was no `main()`.
+- Initial upstream test file was empty.
 
 ### Phase 0 architectural findings
 
-- Firebase Auth, Firestore, FCM plumbing and camera barcode scanning are real implementations.
-- Supabase is mixed into image/token storage despite Firebase being the intended FreshFlag backend.
-- Inventory was scoped to `users/{uid}/groceryItems/{itemId}` and will later migrate to household ownership.
-- Inventory loading automatically created anonymous Firebase sessions and silently substituted dummy grocery items when Firestore failed.
-- Add Item wrote to Hive/local storage while the visible inventory ViewModel read Firestore.
-- Firestore auto-generated document IDs while the application maintained a separate item ID.
-- Expiry values were full ISO timestamps rather than date-only values.
-- Barcode scanning captured a value but discarded it before Add Item; there was no product lookup.
-- Notifications are primarily local-device schedules with hard-coded timings; no household rules/backend delivery/device-token model exists.
-- iOS Firebase configuration contains placeholders, `GoogleService-Info.plist` was not present, and `NSCameraUsageDescription` was missing.
-- README materially overstated barcode-add, offline sync, data model, Firebase configuration, and some expiry behavior.
-- Decision: **retain StayFresh as scaffolding**, but stabilize single-user behavior before adding household features.
+- Firebase Auth, Firestore, FCM plumbing and camera barcode scanning were real implementations.
+- Supabase was mixed into image/token storage despite Firebase being the intended backend.
+- Inventory was split between Hive and Firestore.
+- Inventory loading silently created anonymous sessions and substituted dummy data after Firestore failures.
+- Firestore document IDs did not match application item IDs.
+- Expiry was timestamp-based instead of date-only.
+- Barcode scanning captured a value but discarded it before Add Item.
+- Notifications were local-device oriented and hard-coded.
+- iOS Firebase configuration was incomplete and camera permission was missing.
+- README materially overstated capabilities.
+- Decision: **retain StayFresh only as scaffolding and establish a trustworthy FreshFlag foundation before household work.**
 
 ## 2026-08-14 — Phase 1 stabilization branch
 
@@ -42,58 +40,117 @@ Branch: `phase1-stabilization`
 
 Implemented:
 
-- Replaced empty upstream test file with real `GroceryItem` persistence/serialization tests.
+- Added real `GroceryItem` persistence/serialization tests.
 - Removed automatic anonymous sign-in from inventory loading.
 - Removed silent dummy-data fallback on Firestore failure.
-- Consolidated duplicate `GroceryViewModel` providers into one inventory state instance.
-- Made Firestore document ID equal to the application item ID.
-- Preserved `notes` and `isConsumed` in item serialization/copy behavior.
-- Added transitional remote-first Hive mirroring so a local write cannot report success before Firestore succeeds.
+- Consolidated duplicate `GroceryViewModel` providers.
+- Made Firestore document ID equal to application item ID.
+- Preserved `notes` and `isConsumed` in serialization.
+- Added a temporary remote-first Hive bridge while the inherited UI was being untangled.
 
-Validated on Ubuntu at code HEAD `6ff74a9047ca5fdde3eaa6fe2e59da44622bb69f`:
+Validated at code HEAD `6ff74a9047ca5fdde3eaa6fe2e59da44622bb69f`:
 
-- `flutter test --no-pub`: **3 tests passed**.
-- `dart analyze`: **27 issues**, down from 30; no fatal errors.
+- `flutter test --no-pub`: **3 passed**.
+- `dart analyze`: **27 issues**, no fatal errors.
 - `flutter build linux --no-pub`: **success**.
-- Working tree: clean.
+- Working tree clean.
 
-### Slice 2 — single write path + barcode handoff — VALIDATED
+### Slice 2 — one write path + barcode handoff — VALIDATED
 
 Implemented:
 
-- `AddItemScreen` writes inventory only through `GroceryViewModel`; direct Hive/local inventory persistence was removed from the screen.
-- Add Item supports `initialBarcode` and stores the supplied barcode on the item.
-- Barcode scanner passes the captured barcode into `AddItemScreen` instead of discarding it.
-- Barcode product recognition remains deferred to Phase 2.
-- Removed anonymous sign-in support from `FirebaseAuthService` and `AuthViewModel`.
-- Removed unused Google Sign-In state from the authentication service.
+- Add Item writes through `GroceryViewModel` rather than directly to Hive.
+- Scanner passes captured barcode to Add Item.
+- Removed anonymous authentication support and stale ViewModel calls.
 - Removed duplicate/unreachable Firebase Auth exception cases.
-- `hasValidToken()` now reflects the actual Firebase authenticated session instead of cached token presence.
+- Cached token presence is no longer treated as a valid session.
 
-The first Ubuntu checkpoint exposed two compile blockers (nullable barcode closure value and a stale anonymous-auth ViewModel call). Both were fixed in commits `e6f299d2b3c7b05982f5420e49f8bba517f8bff5` and `439cca30501524546069221dd6cc551bb346bdd4`.
+An initial runtime pass exposed two compile errors; both were corrected before re-validation.
 
-Final Ubuntu validation at HEAD `a4b980f6a27a275f10951398c1d6c98af131c89f`:
+Validated at HEAD `a4b980f6a27a275f10951398c1d6c98af131c89f`:
 
-- `flutter test --no-pub`: **3 tests passed**.
-- `dart analyze`: **19 issues**, down from 27; **no errors**.
+- `flutter test --no-pub`: **3 passed**.
+- `dart analyze`: **19 issues**, no errors.
 - `flutter build linux --no-pub`: **success**.
-- Working tree: clean.
+- Working tree clean.
 
-Result: Slice 2 accepted.
-
-### Slice 3 — date-only expiry semantics — AWAITING RUNTIME VALIDATION
+### Slice 3 — date-only expiry semantics — VALIDATED
 
 Implemented:
 
-- `GroceryItem.expiryDate` remains a `DateTime` for compatibility with inherited Flutter/Hive code, but construction now normalizes it to a calendar date at local midnight.
-- Firestore/JSON serialization now stores expiry as strict `YYYY-MM-DD`, matching the FreshFlag data contract.
-- Legacy inherited records containing full ISO timestamps remain readable; they are normalized to date-only semantics when loaded.
-- Calendar-day expiry calculations now operate directly on the normalized expiry date.
-- Expanded tests from 3 to 4 cases, including exact date-only serialization and legacy timestamp migration behavior.
+- New expiry values normalize to calendar dates.
+- Firestore/JSON expiry storage is strict `YYYY-MM-DD`.
+- Legacy full ISO timestamp records remain readable and normalize on load.
+- Firestore expiry queries were subsequently changed to compare date-only strings as well.
+- Expanded persistence tests from 3 to 4 cases.
 
-Relevant commits:
+Validated at HEAD `7bf7b02c1e3c7a21ba1b03bd00c80062066f0747`:
 
-- `b3de1228996949185be59dbef8984ad8a43e11ff` — enforce date-only expiry semantics.
-- `90f62d6856f73a27a9ed27c9fe535ec53992803c` — cover date-only persistence and legacy migration.
+- `flutter test --no-pub`: **4 passed**.
+- `dart analyze`: **19 issues**, no errors.
+- `flutter build linux --no-pub`: **success**.
+- Working tree clean.
 
-Current constraint: this model/persistence change must now be run through Flutter tests, analyzer, and the Linux compiler before additional architectural changes are layered on top.
+### Slice 4 — remove inherited split architecture — AWAITING RUNTIME VALIDATION
+
+After Slice 3 validation, further audit of the visible app found that the inherited login/signup/dashboard/reminders/settings screens still bypassed the newly stabilized services. This slice removes those parallel demo paths rather than allowing them to survive into household work.
+
+#### Real Firebase authentication flow
+
+- Replaced inherited fake login flow with `AuthViewModel`/Firebase email-password sign-in.
+- Password reset now uses Firebase Auth.
+- Replaced fake signup/local-user creation with Firebase account creation.
+- `AuthWrapper` now routes directly from the real Firebase auth-state stream.
+- Inventory loads once per authenticated UID and resets on sign-out/account change.
+
+Key commits:
+
+- `335563af115be8926ff0329d6fcd14021a676c6a` — Firebase login.
+- `2159883d3118df32c267f46c665363894459cca2` — Firebase signup.
+- `6d9c6757cc31b1df59eab9d187260a3b9dacd34d` — authenticated inventory lifecycle.
+
+#### One authoritative inventory UI
+
+- Dashboard now reads `GroceryViewModel`/Firestore instead of Hive.
+- Reminders now derive from the same inventory state.
+- Settings shows the Firebase user and supports real Firebase sign-out.
+- Main authenticated shell simplified to Inventory / Reminders / Settings.
+- Obsolete duplicate/local flows deleted: old splash, onboarding, HomeScreen, profile editor, notification-test screen, and inherited client notification sender widget.
+
+#### Supabase removed from active architecture
+
+- Add Item no longer exposes inherited Supabase image upload.
+- `GroceryViewModel` no longer imports or uses Supabase storage.
+- App startup no longer initializes Supabase.
+- Supabase storage service deleted.
+- Supabase dependency removed from `pubspec.yaml`.
+- `supabase_setup.sql` and mixed-backend `env_config.dart` deleted.
+- Client constants no longer contain placeholder backend credentials.
+- FCM service no longer stores tokens in Supabase or attempts client-side FCM HTTP sends. Client-side sending is deliberately disabled; backend delivery is reserved for the notification backend phases.
+
+#### Hive removed from inventory/identity
+
+- `LocalDatabaseService` reduced to device-local `SharedPreferences` only.
+- Removed all local grocery CRUD/mirroring and local user identity storage.
+- `GroceryItem` is now a plain Dart/Firestore model, not a `HiveObject`.
+- Obsolete grocery/user Hive adapters and local `UserModel` deleted.
+- Hive/build-runner generator dependencies removed.
+
+#### Firestore and iOS correctness
+
+- Firestore expiry queries now use the same `YYYY-MM-DD` semantics as stored records.
+- Added Phase 1 `firestore.rules`: authenticated users may access only their own `/users/{uid}` namespace and grocery items; all unspecified paths are denied.
+- Added `firebase.json` pointing at the rules file.
+- iOS display name changed to FreshFlag.
+- Added `NSCameraUsageDescription` for barcode scanning and photo-library usage text.
+
+#### Package/dependency cleanup
+
+- Dart package renamed from `stayfresh` to `freshflag`.
+- Tests updated to import `package:freshflag/...`.
+- Inherited unused dependencies removed; the remaining core dependency set is Firebase, local notifications, scanner, Provider, SharedPreferences and timezone support.
+- README replaced with an accurate FreshFlag status/roadmap instead of inherited claims.
+
+Important constraint now reached:
+
+`pubspec.yaml` changed materially, including package rename and dependency removals. The existing `pubspec.lock` is intentionally stale until Flutter resolves the new graph locally. A local `flutter pub get` plus tests/analyzer/Linux compile is required before any further feature work is layered on this slice.
