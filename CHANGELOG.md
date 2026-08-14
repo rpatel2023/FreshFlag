@@ -105,7 +105,7 @@ Result: Phase 6 source is integrated. Real Firebase deployment remains separate 
 - FCM preserves terminated-launch notification targets until the authenticated app shell is ready and emits background notification-tap targets to the live shell.
 - FCM message/tap listeners are installed before initial token lookup so an early Apple/APNs token timing failure cannot disable deep-link handling for the process lifetime.
 - Enabled foreground Apple notification presentation for physical-device validation.
-- Notification taps verify target household access, switch households when required, bind scoped inventory, fetch the exact item, switch to Inventory, and open a reusable item-detail screen.
+- Notification taps verify target household access, switch households if needed, bind scoped inventory, fetch the exact item, switch to Inventory, and open a reusable item-detail screen.
 - Missing/deleted items and lost household access degrade to a user-visible message rather than an invalid route.
 - Inventory rows reuse the same item-detail view; users can mark items consumed or restore them there.
 - Added notification payload parser tests for canonical, legacy, unrelated, and incomplete payloads.
@@ -235,3 +235,36 @@ Branch: `feature/discord-reminders`.
 - PR #9 merged to `main` as `82fc45c8d11d167a82cc5304433605928e1e8550`.
 
 Result: Discord reminder fallback and app-wide dark mode are integrated and source-validated. Real Discord delivery still requires the FreshFlag Firebase backend to be deployed and a household Discord webhook to be configured; iPhone/SideStore validation remains part of the external deployment phase.
+
+## 2026-08-14 — Discord per-user delivery redesign — IN PROGRESS
+
+Branch: `feature/per-user-discord`.
+
+### Product decision
+
+- Superseded the household-level/shared-channel Discord configuration before production deployment.
+- Discord is now a personal delivery preference: each signed-in FreshFlag user may configure their own webhook, independently enable/disable it, and point it to a different Discord channel.
+- Household notification rules remain authoritative for **when and what** is due; FCM and Discord are per-recipient delivery channels.
+- No production data migration is required because the FreshFlag Firebase project has not yet been deployed.
+
+### Backend and idempotency redesign
+
+- Moved active Discord secret storage from `householdIntegrations/{householdId}` to backend-only `userIntegrations/{uid}`.
+- Discord callable status/save/test endpoints now derive the target user solely from authenticated `request.auth.uid`; no household ID or household-owner role is required.
+- Webhook URLs are still normalized to approved Discord HTTPS webhook hosts/paths and are never returned to Flutter.
+- Scheduled reminder processing enters the household member loop first, lazily loads/caches that member's Discord integration only for actually due reminder events, and sends Discord independently of the FCM/device path.
+- A user's FCM `notificationsEnabled` preference and device availability do not suppress that user's enabled Discord delivery.
+- Discord delivery IDs now include `recipientUid` plus a Discord channel discriminator, preventing collisions between two household members or with the FCM ledger.
+- Added backend regression coverage proving Discord delivery identity changes when the recipient changes.
+
+### Security and Flutter client redesign
+
+- Firestore rules explicitly deny all direct client access to `userIntegrations/{uid}`, including access by the user whose webhook is stored there.
+- Retained an explicit deny rule on abandoned `householdIntegrations/{householdId}` for defense-in-depth if old development data ever exists.
+- Updated the Firestore Emulator test to prove a user cannot directly read/write their own integration secret or another user's integration document.
+- `DiscordReminderService` no longer sends household IDs to status/save/test callable Functions.
+- Discord Settings no longer depends on the active household or owner role; every signed-in user gets connect/replace, enable/disable, and test controls for their own webhook.
+- Moved the Discord Settings entry from household administration into the personal preferences card beside push notifications and dark mode.
+- Updated `ARCHITECTURE.md` and `PROJECT_CONTEXT.md` so per-user Discord is now the authoritative product/technical design.
+
+Current checkpoint: per-user Discord source conversion is complete. No dependency or generated-file changes were introduced. Next validation should be one coherent PR so Flutter compile/tests/analyzer/build, Functions TypeScript tests, and Firestore Emulator authorization tests all verify the redesign once.
