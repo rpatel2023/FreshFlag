@@ -46,16 +46,26 @@ class HouseholdMember {
     required this.uid,
     required this.role,
     required this.joinedAt,
+    this.displayName,
   });
 
   final String uid;
   final HouseholdRole role;
   final DateTime joinedAt;
+  final String? displayName;
+
+  String get displayLabel {
+    final name = displayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return 'Member ${uid.length <= 8 ? uid : uid.substring(0, 8)}';
+  }
 
   Map<String, dynamic> toMap() => {
         'uid': uid,
         'role': role.name,
         'joinedAt': joinedAt.toIso8601String(),
+        if (displayName?.trim().isNotEmpty == true)
+          'displayName': displayName!.trim(),
       };
 
   factory HouseholdMember.fromMap(String uid, Map<String, dynamic> map) {
@@ -67,6 +77,7 @@ class HouseholdMember {
         orElse: () => HouseholdRole.member,
       ),
       joinedAt: DateTime.parse(map['joinedAt'] as String),
+      displayName: map['displayName'] as String?,
     );
   }
 }
