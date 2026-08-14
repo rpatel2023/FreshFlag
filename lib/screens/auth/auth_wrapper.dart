@@ -1,45 +1,72 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:stayfresh/screens/home_screen.dart';
-import '../../services/firebase_auth_service.dart';
-import '../../screens/auth/login_screen.dart';
 
-/// A widget that handles the authentication state and routes the user
-/// to the appropriate screen based on their authentication status.
-/// to the appropriate screen based on their authentication status.
-class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({Key? key}) : super(key: key);
+import '../../services/firebase_auth_service.dart';
+import '../../viewmodels/grocery_viewmodel.dart';
+import '../home_screen.dart';
+import 'login_screen.dart';
+
+/// Routes between authentication and the signed-in inventory experience.
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  String? _loadedUserId;
+
+  void _syncInventoryFor(User? user) {
+    final groceryViewModel = context.read<GroceryViewModel>();
+
+    if (user == null) {
+      if (_loadedUserId != null) {
+        _loadedUserId = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) groceryViewModel.reset();
+        });
+      }
+      return;
+    }
+
+    if (_loadedUserId == user.uid) return;
+    _loadedUserId = user.uid;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) groceryViewModel.loadItems();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<FirebaseAuthService>(context);
+    final authService = context.read<FirebaseAuthService>();
 
     return StreamBuilder<User?>(
       stream: authService.authStateChanges,
       builder: (context, snapshot) {
-        // Show loading indicator while checking auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // If user is signed in, show home screen
-        if (snapshot.hasData && snapshot.data != null) {
+        final user = snapshot.data;
+        _syncInventoryFor(user);
+
+        if (user != null) {
           return const HomeScreen();
         }
 
-        // If user is not signed in, show login screen
         return const LoginScreen();
       },
     );
   }
 }
 
-/// A simple loading screen shown during app initialization
 class SplashScreen extends StatelessWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
