@@ -150,6 +150,11 @@ service cloud.firestore {
       allow update, delete: if isHouseholdOwner(resource.data.householdId);
     }
 
+    // Server-managed integration secrets. Clients interact only through callable functions.
+    match /householdIntegrations/{householdId} {
+      allow read, write: if false;
+    }
+
     // Backend-only delivery ledger. Admin SDK bypasses client security rules.
     match /notificationDeliveries/{deliveryId} {
       allow read, write: if false;

@@ -33,10 +33,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create account')),
-      backgroundColor: AppTheme.offWhite,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -54,8 +54,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         Text(
                           'Join FreshFlag',
                           textAlign: TextAlign.center,
-                          style: AppTheme.headingLarge.copyWith(
-                            color: AppTheme.darkGreen,
+                          style: theme.textTheme.headlineLarge?.copyWith(
+                            color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -143,7 +143,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           Text(
                             auth.error!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: AppTheme.errorRed),
+                            style: TextStyle(color: theme.colorScheme.error),
                           ),
                           const SizedBox(height: AppTheme.spacingM),
                         ],

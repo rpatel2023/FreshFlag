@@ -62,7 +62,6 @@ class _AddItemScreenState extends State<AddItemScreen> {
     final inventory = context.watch<GroceryViewModel>();
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Add Item')),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -81,7 +80,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                             : Icons.check_circle_outline,
                         color: widget.initialName == null
                             ? null
-                            : AppTheme.primaryGreen,
+                            : Theme.of(context).colorScheme.primary,
                       ),
                       title: Text(
                         widget.initialName == null
@@ -172,7 +171,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   Text(
                     inventory.error!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppTheme.errorRed),
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
                   ),
                 ],
                 const SizedBox(height: AppTheme.spacingXL),

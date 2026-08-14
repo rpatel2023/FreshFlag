@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../models/notification_target.dart';
 import '../services/fcm_service.dart';
-import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 import '../viewmodels/household_viewmodel.dart';
 import 'dashboard_screen.dart';
@@ -68,7 +67,7 @@ class _MainAppScreenState extends State<MainAppScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
-        indicatorColor: AppTheme.lightGreen,
+        indicatorColor: Theme.of(context).colorScheme.primaryContainer,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),

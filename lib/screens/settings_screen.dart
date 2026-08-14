@@ -7,6 +7,7 @@ import '../services/local_database_service.dart';
 import '../theme/theme_provider.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/household_viewmodel.dart';
+import 'discord_reminders_screen.dart';
 import 'household_invite_screen.dart';
 import 'notification_rules_screen.dart';
 
@@ -30,7 +31,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final current = household.current;
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(AppTheme.spacingL),
@@ -85,6 +85,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const NotificationRulesScreen(),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.discord),
+                    title: const Text('Discord reminders'),
+                    subtitle: Text(
+                      household.isOwner
+                          ? 'Connect a shared Discord channel for expiry reminders'
+                          : 'View the household Discord reminder status',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DiscordRemindersScreen(),
                       ),
                     ),
                   ),
