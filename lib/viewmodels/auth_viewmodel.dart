@@ -3,20 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firebase_auth_service.dart';
 
 class AuthViewModel extends ChangeNotifier {
-  // Private fields
   User? _currentUser;
   bool _isLoading = false;
   String? _error;
 
-  // Services
   final FirebaseAuthService _authService = FirebaseAuthService.instance;
 
-  // Constructor
   AuthViewModel() {
     _initializeAuthState();
   }
 
-  // Getters
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
   bool get isLoading => _isLoading;
@@ -26,11 +22,9 @@ class AuthViewModel extends ChangeNotifier {
   String? get userName => _currentUser?.displayName;
   String? get userPhotoUrl => _currentUser?.photoURL;
 
-  /// Initialize authentication state and listen to auth changes
   void _initializeAuthState() {
     _currentUser = _authService.currentUser;
-    
-    // Listen to authentication state changes
+
     _authService.authStateChanges.listen((User? user) {
       _currentUser = user;
       notifyListeners();
@@ -54,14 +48,18 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> signUpWithEmail(String email, String password, {String? displayName}) async {
+  Future<bool> signUpWithEmail(
+    String email,
+    String password, {
+    String? displayName,
+  }) async {
     _setLoading(true);
     _clearError();
 
     try {
       final user = await _authService.createUserWithEmailAndPassword(
-        email, 
-        password, 
+        email,
+        password,
         displayName: displayName,
       );
       _currentUser = user;
@@ -75,24 +73,6 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> signInAnonymously() async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      final user = await _authService.signInAnonymously();
-      _currentUser = user;
-      notifyListeners();
-      return user != null;
-    } catch (e) {
-      _setError(e.toString());
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  /// Sign out the current user
   Future<void> signOut() async {
     _setLoading(true);
     _clearError();
@@ -108,9 +88,6 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Send password reset email
-  /// 
-  /// [email] - User's email address
   Future<bool> sendPasswordResetEmail(String email) async {
     _setLoading(true);
     _clearError();
@@ -126,10 +103,6 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Update user profile
-  /// 
-  /// [displayName] - New display name
-  /// [photoURL] - New photo URL
   Future<bool> updateProfile({String? displayName, String? photoURL}) async {
     _setLoading(true);
     _clearError();
@@ -139,8 +112,7 @@ class AuthViewModel extends ChangeNotifier {
         displayName: displayName,
         photoURL: photoURL,
       );
-      
-      // Refresh current user data
+
       _currentUser = _authService.currentUser;
       notifyListeners();
       return true;
@@ -152,7 +124,6 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Delete current user account
   Future<bool> deleteAccount() async {
     _setLoading(true);
     _clearError();
@@ -170,12 +141,9 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Clear error state
   void clearError() {
     _clearError();
   }
-
-  // Private helper methods
 
   void _setLoading(bool loading) {
     _isLoading = loading;
