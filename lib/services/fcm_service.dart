@@ -45,6 +45,22 @@ class FCMService {
 
   Future<void> initialize() async {
     if (_isInitialized) return;
+    _isInitialized = true;
+
+    // Install message/tap listeners before attempting token retrieval. On
+    // Apple platforms the APNs token can lag app startup; that must not disable
+    // deep-link handling for the rest of the process lifetime.
+    _fcm.onTokenRefresh.listen((token) async {
+      _currentToken = token;
+      debugPrint('FCM token refreshed.');
+      await syncRegistrationForCurrentUser(token: token);
+    });
+
+    FirebaseMessaging.onMessage.listen((message) {
+      debugPrint('Foreground FCM message: ${message.messageId}');
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen(_queueNavigationFromMessage);
 
     try {
       if (!kIsWeb &&
@@ -56,21 +72,11 @@ class FCMService {
           sound: true,
         );
       }
+    } catch (e) {
+      debugPrint('FCM foreground presentation setup failed: $e');
+    }
 
-      _currentToken = await _fcm.getToken();
-
-      _fcm.onTokenRefresh.listen((token) async {
-        _currentToken = token;
-        debugPrint('FCM token refreshed.');
-        await syncRegistrationForCurrentUser(token: token);
-      });
-
-      FirebaseMessaging.onMessage.listen((message) {
-        debugPrint('Foreground FCM message: ${message.messageId}');
-      });
-
-      FirebaseMessaging.onMessageOpenedApp.listen(_queueNavigationFromMessage);
-
+    try {
       final initialMessage = await _fcm.getInitialMessage();
       if (initialMessage != null) {
         final target = NotificationTarget.fromData(initialMessage.data);
@@ -79,10 +85,14 @@ class FCMService {
         }
         debugPrint('Started from FCM message: ${initialMessage.messageId}');
       }
-
-      _isInitialized = true;
     } catch (e) {
-      debugPrint('FCM initialization failed: $e');
+      debugPrint('FCM initial-message lookup failed: $e');
+    }
+
+    try {
+      _currentToken = await _fcm.getToken();
+    } catch (e) {
+      debugPrint('Initial FCM token retrieval failed: $e');
     }
   }
 
