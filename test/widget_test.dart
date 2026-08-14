@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:freshflag/models/grocery_item.dart';
 import 'package:freshflag/models/household.dart';
 import 'package:freshflag/models/household_invite.dart';
+import 'package:freshflag/models/notification_rule.dart';
 import 'package:freshflag/models/product_lookup_result.dart';
 
 void main() {
@@ -152,6 +153,45 @@ void main() {
 
       expect(active.isActive, isTrue);
       expect(revoked.isActive, isFalse);
+    });
+  });
+
+  group('NotificationRule', () {
+    test('round-trips configured reminder fields', () {
+      final rule = NotificationRule(
+        id: 'rule-1',
+        daysBefore: 3,
+        titleTemplate: '{item} expires soon',
+        bodyTemplate: '{item} expires in {days} days.',
+        sendTime: '09:00',
+        enabled: true,
+        createdAt: DateTime.utc(2026, 8, 14),
+        updatedAt: DateTime.utc(2026, 8, 14, 1),
+      );
+
+      final restored = NotificationRule.fromMap(rule.id, rule.toMap());
+      expect(restored.id, rule.id);
+      expect(restored.daysBefore, 3);
+      expect(restored.sendTime, '09:00');
+      expect(restored.enabled, isTrue);
+    });
+
+    test('normalizes and validates local send time', () {
+      expect(NotificationRule.normalizeSendTime('9:05'), '09:05');
+      expect(() => NotificationRule.normalizeSendTime('24:00'), throwsFormatException);
+      expect(() => NotificationRule.normalizeSendTime('9:5'), throwsFormatException);
+    });
+
+    test('renders supported message variables', () {
+      final rendered = NotificationRule.renderTemplate(
+        '{item} x{quantity} expires in {days} days ({expiry_date}) at {location}',
+        item: 'Milk',
+        days: 2,
+        expiryDate: '2026-08-20',
+        quantity: 3,
+        location: 'Fridge',
+      );
+      expect(rendered, 'Milk x3 expires in 2 days (2026-08-20) at Fridge');
     });
   });
 
