@@ -64,6 +64,8 @@ class InviteService {
       throw const FormatException('Invite code must be 12 characters');
     }
 
+    // The invite itself is the only document an outsider is allowed to read.
+    // The household remains private until membership is atomically created.
     final inviteRef = _firestore.collection('invites').doc(code);
     final inviteSnapshot = await inviteRef.get();
     final inviteData = inviteSnapshot.data();
@@ -85,28 +87,32 @@ class InviteService {
     final userRef = _firestore.collection('users').doc(uid);
     final joinedAt = DateTime.now().toUtc();
 
-    await _firestore.runTransaction((transaction) async {
-      transaction.update(householdRef, {
-        'memberUids': FieldValue.arrayUnion([uid]),
-        'lastJoinInviteId': code,
-        'updatedAt': joinedAt.toIso8601String(),
-      });
-      transaction.set(memberRef, {
-        'uid': uid,
-        'role': HouseholdRole.member.name,
-        'joinedAt': joinedAt.toIso8601String(),
-        'inviteId': code,
-      });
-      transaction.set(
-        userRef,
-        {
-          'currentHouseholdId': householdId,
-          'updatedAt': joinedAt.toIso8601String(),
-        },
-        SetOptions(merge: true),
-      );
+    // No household read happens before this batch. Security Rules validate the
+    // existing household plus the invite server-side while the client only
+    // supplies the intended self-membership mutation.
+    final batch = _firestore.batch();
+    batch.update(householdRef, {
+      'memberUids': FieldValue.arrayUnion([uid]),
+      'lastJoinInviteId': code,
+      'updatedAt': joinedAt.toIso8601String(),
     });
+    batch.set(memberRef, {
+      'uid': uid,
+      'role': HouseholdRole.member.name,
+      'joinedAt': joinedAt.toIso8601String(),
+      'inviteId': code,
+    });
+    batch.set(
+      userRef,
+      {
+        'currentHouseholdId': householdId,
+        'updatedAt': joinedAt.toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
 
+    // Membership now exists, so the normal household read rule applies.
     final householdSnapshot = await householdRef.get();
     final householdData = householdSnapshot.data();
     if (householdData == null) {
