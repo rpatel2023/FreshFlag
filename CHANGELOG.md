@@ -383,3 +383,21 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
   - remains `workflow_dispatch` only
 - PR #12 merged to `main` as `abbba4d303e70a25a60d8e189f076cdfbe910f4f`.
 - Next validation gate: rerun the manual SideStore IPA workflow on Xcode 15.4.
+
+### SideStore iOS build attempt #2 — SUCCESS / IPA ARTIFACT READY
+
+- Manual SideStore workflow run `31843526124` executed against `main` at source commit `249355048c2c4e6c0cde91df034e20a77bb3bccf`.
+- GitHub runner used `macos-14` with Xcode 15.4 selected explicitly.
+- Full validation/build pipeline succeeded:
+  - dependency resolution and lockfile reproducibility: **success**
+  - Flutter tests: **21/21 passed**
+  - `dart analyze`: **No issues found**
+  - unsigned iOS release build: **success**
+  - SideStore IPA assembly: **success**
+  - artifact upload: **success**
+- Produced artifact `FreshFlag-SideStore-IPA` containing `FreshFlag-unsigned.ipa`.
+- Artifact size: **22,881,038 bytes** (~22.9 MB).
+- Artifact SHA-256 digest: `f50e28ac74fdb6fed497289fb3b5de4845882fc3ee220428ec035e54659f94fc`.
+- Artifact retention expires `2026-08-21T21:54:04Z`.
+- Result: the Xcode 15.4 compatibility workaround resolves the native iOS build blocker for the current FlutterFire dependency set.
+- Next external gate: install the generated IPA through SideStore on the physical iPhone, then perform the two-device FreshFlag acceptance flow.
