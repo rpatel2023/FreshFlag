@@ -171,7 +171,7 @@ async function deliverToRecipient(args: {
       tokens,
       notification: {title, body},
       data: {
-        type: 'expiry_reminder',
+        type: 'expiry',
         householdId: args.householdId,
         itemId: args.itemId,
         ruleId: args.ruleId,
