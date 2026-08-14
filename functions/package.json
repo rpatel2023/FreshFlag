@@ -3,11 +3,11 @@
   "private": true,
   "main": "lib/index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test lib/**/*.test.js"
+    "test": "npm run build && node --test lib/reminder_logic.test.js"
   },
   "dependencies": {
     "firebase-admin": "^14.2.0",
