@@ -4,14 +4,12 @@ import 'package:provider/provider.dart';
 
 import '../../services/firebase_auth_service.dart';
 import '../../viewmodels/grocery_viewmodel.dart';
+import '../../viewmodels/household_viewmodel.dart';
+import '../household_setup_screen.dart';
 import '../main_app_screen.dart';
 import 'login_screen.dart';
 
-/// Routes between authentication and the app from the real Firebase session.
-///
-/// Inventory is loaded when an authenticated user becomes active and cleared
-/// when the session ends so one user's data can never leak into another user's
-/// in-memory state.
+/// Routes from Firebase authentication into household-owned inventory.
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
@@ -21,6 +19,7 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   String? _loadedUid;
+  String? _boundHouseholdId;
 
   @override
   Widget build(BuildContext context) {
@@ -30,35 +29,55 @@ class _AuthWrapperState extends State<AuthWrapper> {
       stream: authService.authStateChanges,
       initialData: authService.currentUser,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            snapshot.data == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+        if (snapshot.connectionState == ConnectionState.waiting && snapshot.data == null) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
         final user = snapshot.data;
         if (user == null) {
-          if (_loadedUid != null) {
-            _loadedUid = null;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              context.read<GroceryViewModel>().reset();
-            });
-          }
+          if (_loadedUid != null) _resetSessionState();
           return const LoginScreen();
         }
 
+        final household = context.watch<HouseholdViewModel>();
         if (_loadedUid != user.uid) {
           _loadedUid = user.uid;
+          _boundHouseholdId = null;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            context.read<GroceryViewModel>().loadItems();
+            context.read<HouseholdViewModel>().initializeForUser(user.uid);
+          });
+        }
+
+        if (household.isLoading && household.current == null) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        if (household.current == null) {
+          return const HouseholdSetupScreen();
+        }
+
+        final householdId = household.current!.id;
+        if (_boundHouseholdId != householdId) {
+          _boundHouseholdId = householdId;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            context.read<GroceryViewModel>().bindHousehold(householdId);
           });
         }
 
         return const MainAppScreen();
       },
     );
+  }
+
+  void _resetSessionState() {
+    _loadedUid = null;
+    _boundHouseholdId = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<HouseholdViewModel>().reset();
+      context.read<GroceryViewModel>().reset();
+    });
   }
 }
