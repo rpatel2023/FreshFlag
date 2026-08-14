@@ -123,4 +123,49 @@ Ubuntu validation at branch HEAD `070520292497a23a800e9a5142e1a0791c761608`:
 - `flutter build linux --no-pub`: **success**.
 - Working tree: **clean**.
 
-Result: Phase 4 invitation/join source is accepted for integration. Firestore rule behavior still requires emulator-backed authorization tests before production deployment; that security test harness is scheduled as part of the backend phase before release.
+Repository integration:
+
+- Pull request #3 merged to `main` as `fc41e3dd9ba65ec0ac9233733a273a269464fe34`.
+- Firestore rule behavior still requires emulator-backed authorization tests before production deployment; the security harness remains a release blocker.
+
+## 2026-08-14 — Phase 5 household notification rules — AWAITING RUNTIME VALIDATION
+
+Branch: `phase5-notification-rules`
+
+### Configurable household reminder rules
+
+- Added `NotificationRule` with `daysBefore`, title/body templates, household-local `HH:mm` send time, enabled state, and timestamps.
+- Supported variables are `{item}`, `{days}`, `{expiry_date}`, `{quantity}`, and `{location}`.
+- Added strict send-time normalization/validation and template rendering helpers.
+- Added `NotificationRuleService` storing rules under `households/{householdId}/notificationRules/{ruleId}`.
+- Household members can view rules; owners can add, edit, enable/disable, and delete rules from Settings.
+- Rules are snapshot-driven so edits appear without manual refresh.
+
+### Device registration and push preference
+
+- Each installation gets a stable random local `deviceId` without adding another package dependency.
+- Current FCM registration is stored at `users/{uid}/devices/{deviceId}` with platform and `lastSeenAt`.
+- Registration sync runs after authentication and whenever the FCM token refreshes.
+- Per-user `notificationsEnabled` is persisted in Firestore so the backend can honor push opt-out rather than relying on device-local state alone.
+- Existing validated FlutterFire versions remain pinned; direct FID targeting is deferred to a deliberate Firebase SDK upgrade instead of destabilizing the current app. The backend schema keeps installation identity separate from the FCM token so that migration remains contained.
+
+### Security rules
+
+- Users can only read/write their own device registrations.
+- Household members can read reminder rules.
+- Only household owners can create/update/delete reminder rules.
+- Rules enforce valid `daysBefore`, non-empty templates, strict `HH:mm`, and boolean enabled state.
+- `notificationDeliveries/{deliveryId}` is explicitly client-denied for the upcoming Admin SDK worker.
+
+### Tests
+
+- Existing 11 tests retained.
+- Added notification rule persistence, send-time validation, and template rendering coverage, bringing the expected suite to 14 tests.
+
+### Backend direction verified against current Firebase guidance
+
+- Scheduled backend processing will use Cloud Functions v2 `onSchedule` / Cloud Scheduler.
+- Client-side FCM sending remains forbidden.
+- Registration freshness timestamps are stored so the backend can later prune stale/invalid registrations.
+
+Current runtime boundary: the new model, rule UI, FCM persistence changes, Firestore rule source, and expanded tests must pass Flutter tests/analyzer/Linux compilation before Phase 6 backend functions are layered on top.

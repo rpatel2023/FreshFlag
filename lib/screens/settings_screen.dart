@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../services/fcm_service.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/local_database_service.dart';
 import '../theme/theme_provider.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/household_viewmodel.dart';
 import 'household_invite_screen.dart';
+import 'notification_rules_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,6 +19,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = LocalDatabaseService.notificationsEnabled;
+  bool _updatingNotifications = false;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +73,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.notifications_active_outlined),
+                    title: const Text('Expiry reminder rules'),
+                    subtitle: Text(
+                      household.isOwner
+                          ? 'Choose days, send time, and reminder messages'
+                          : 'View household reminder rules',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationRulesScreen(),
+                      ),
+                    ),
+                  ),
                   if (household.households.length > 1)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
@@ -109,13 +127,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 SwitchListTile(
                   title: const Text('Push notifications'),
-                  subtitle: const Text('Allow expiry reminder notifications'),
+                  subtitle: const Text('Receive household expiry reminders'),
                   value: _notificationsEnabled,
-                  onChanged: (value) async {
-                    await LocalDatabaseService.setNotificationsEnabled(value);
-                    if (!mounted) return;
-                    setState(() => _notificationsEnabled = value);
-                  },
+                  onChanged: _updatingNotifications ? null : _setNotificationsEnabled,
                 ),
                 SwitchListTile(
                   title: const Text('Dark mode'),
@@ -145,6 +159,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _setNotificationsEnabled(bool value) async {
+    setState(() => _updatingNotifications = true);
+    try {
+      await FCMService.instance.setPushEnabledForCurrentUser(value);
+      await LocalDatabaseService.setNotificationsEnabled(value);
+      if (!mounted) return;
+      setState(() => _notificationsEnabled = value);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update notifications: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _updatingNotifications = false);
+    }
   }
 
   Future<void> _signOut(BuildContext context) async {

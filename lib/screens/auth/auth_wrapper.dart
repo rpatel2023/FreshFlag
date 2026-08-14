@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../services/fcm_service.dart';
 import '../../services/firebase_auth_service.dart';
 import '../../viewmodels/grocery_viewmodel.dart';
 import '../../viewmodels/household_viewmodel.dart';
@@ -43,9 +44,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
         if (_loadedUid != user.uid) {
           _loadedUid = user.uid;
           _boundHouseholdId = null;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (!mounted) return;
-            context.read<HouseholdViewModel>().initializeForUser(user.uid);
+            await FCMService.instance.syncRegistrationForCurrentUser();
+            if (!mounted) return;
+            await context.read<HouseholdViewModel>().initializeForUser(user.uid);
           });
         }
 
