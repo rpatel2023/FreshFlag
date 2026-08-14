@@ -343,3 +343,24 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
   - `processExpiryReminders` — v2 scheduled, 512 MB, Node.js 22
   - `pruneStaleDeviceRegistrations` — v2 scheduled, 256 MB, Node.js 22
 - All Functions are deployed in `us-central1`.
+
+### SideStore release preparation + item location support — VALIDATED
+
+- Added optional inventory storage location persistence to `GroceryItem`.
+- Add Item now accepts an optional storage location such as fridge, freezer, or pantry.
+- Item details now display the stored location.
+- This completes the inventory data path for reminder template variable `{location}`; the deployed backend already reads `item.location`.
+- Added persistence coverage for item location while preserving compatibility with existing records that have no location.
+- Added `.github/workflows/ios-sidestore-build.yml`.
+  - Manual `workflow_dispatch` only.
+  - Uses a GitHub macOS runner only when an iOS artifact is intentionally requested.
+  - Runs Flutter tests and analyzer before building.
+  - Builds the iOS release without code signing.
+  - Verifies bundle ID `com.rpatel2023.freshflag`.
+  - Places the production `GoogleService-Info.plist` into the final app bundle.
+  - Packages `Payload/FreshFlag.app` as `FreshFlag-unsigned.ipa`.
+  - Retains the workflow artifact for 7 days.
+- Added `docs/sideload.md` as the SideStore-first private distribution and two-device acceptance runbook.
+- PR #11 Flutter CI run `31841194028`: **success**.
+- PR #11 merged to `main` as `e77f40669dd948bf4e539f8ec9938e7fe4aded18`.
+- Next external gate: run the manual macOS SideStore IPA workflow and validate the resulting unsigned IPA.
