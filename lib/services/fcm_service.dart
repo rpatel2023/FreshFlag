@@ -53,7 +53,9 @@ class FCMService {
     _fcm.onTokenRefresh.listen((token) async {
       _currentToken = token;
       debugPrint('FCM token refreshed.');
-      await syncRegistrationForCurrentUser(token: token);
+      if (await isPushAuthorized()) {
+        await syncRegistrationForCurrentUser(token: token);
+      }
     });
 
     FirebaseMessaging.onMessage.listen((message) {
@@ -103,12 +105,40 @@ class FCMService {
         badge: true,
         sound: true,
       );
-      return settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
+      return _isAuthorized(settings.authorizationStatus);
     } catch (e) {
       debugPrint('FCM permission request failed: $e');
       return false;
     }
+  }
+
+  Future<bool> isPushAuthorized() async {
+    try {
+      final settings = await _fcm.getNotificationSettings();
+      return _isAuthorized(settings.authorizationStatus);
+    } catch (e) {
+      debugPrint('FCM permission state lookup failed: $e');
+      return false;
+    }
+  }
+
+  /// Mirrors actual OS authorization into Firestore for backend targeting.
+  ///
+  /// This method never prompts. It is safe to call after authentication and
+  /// when Settings opens. A denied/not-yet-requested device is treated as an
+  /// opt-out until the user explicitly enables notifications.
+  Future<bool> syncPushPreferenceForCurrentUser() async {
+    final uid = _auth.currentUserId;
+    if (uid == null) return false;
+
+    final enabled = await isPushAuthorized();
+    if (enabled) {
+      await syncRegistrationForCurrentUser();
+    } else {
+      await removeCurrentUserRegistration();
+    }
+    await _writePushPreference(uid, enabled);
+    return enabled;
   }
 
   Future<String?> getToken() async {
@@ -157,18 +187,16 @@ class FCMService {
     if (enabled) {
       final granted = await requestPermissions();
       if (!granted) {
+        await removeCurrentUserRegistration();
+        await _writePushPreference(uid, false);
         throw StateError('Notification permission was not granted');
       }
       await syncRegistrationForCurrentUser();
+    } else {
+      await removeCurrentUserRegistration();
     }
 
-    await _firestore.collection('users').doc(uid).set(
-      {
-        'notificationsEnabled': enabled,
-        'updatedAt': DateTime.now().toUtc().toIso8601String(),
-      },
-      SetOptions(merge: true),
-    );
+    await _writePushPreference(uid, enabled);
   }
 
   Future<void> removeCurrentUserRegistration() async {
@@ -188,6 +216,20 @@ class FCMService {
       debugPrint('FCM registration removal failed: $e');
     }
   }
+
+  Future<void> _writePushPreference(String uid, bool enabled) async {
+    await _firestore.collection('users').doc(uid).set(
+      {
+        'notificationsEnabled': enabled,
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  bool _isAuthorized(AuthorizationStatus status) =>
+      status == AuthorizationStatus.authorized ||
+      status == AuthorizationStatus.provisional;
 
   void _queueNavigationFromMessage(RemoteMessage message) {
     final target = NotificationTarget.fromData(message.data);
