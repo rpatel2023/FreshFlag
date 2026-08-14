@@ -12,6 +12,7 @@ import 'services/notification_service.dart';
 import 'theme/theme_provider.dart';
 import 'viewmodels/auth_viewmodel.dart';
 import 'viewmodels/grocery_viewmodel.dart';
+import 'viewmodels/household_viewmodel.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -85,6 +86,7 @@ class FreshFlagApp extends StatelessWidget {
           value: FirebaseAuthService.instance,
         ),
         ChangeNotifierProvider(create: (_) => AuthViewModel()),
+        ChangeNotifierProvider(create: (_) => HouseholdViewModel()),
         ChangeNotifierProvider(create: (_) => GroceryViewModel()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
