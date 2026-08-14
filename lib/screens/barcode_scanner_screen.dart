@@ -113,6 +113,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     }
 
     if (value == null) return;
+    final scannedValue = value;
 
     setState(() => _handlingBarcode = true);
     await _controller.stop();
@@ -139,7 +140,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: AppTheme.spacingS),
-              SelectableText(value, style: const TextStyle(fontFamily: 'monospace')),
+              SelectableText(
+                scannedValue,
+                style: const TextStyle(fontFamily: 'monospace'),
+              ),
               const SizedBox(height: AppTheme.spacingL),
               Row(
                 children: [
@@ -170,7 +174,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     if (action == _ScanAction.add) {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => AddItemScreen(initialBarcode: value),
+          builder: (_) => AddItemScreen(initialBarcode: scannedValue),
         ),
       );
       return;
