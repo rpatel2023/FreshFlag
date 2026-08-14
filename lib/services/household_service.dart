@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/household.dart';
+import '../models/notification_rule.dart';
 import 'firebase_auth_service.dart';
 
 class HouseholdService {
@@ -14,6 +15,15 @@ class HouseholdService {
     final uid = _auth.currentUserId;
     if (uid == null) throw StateError('User not authenticated');
     return uid;
+  }
+
+  String? get _displayName {
+    final user = _auth.currentUser;
+    final name = user?.displayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final email = user?.email?.trim();
+    if (email == null || email.isEmpty) return null;
+    return email.split('@').first;
   }
 
   CollectionReference<Map<String, dynamic>> get _households =>
@@ -65,6 +75,7 @@ class HouseholdService {
         uid: uid,
         role: HouseholdRole.owner,
         joinedAt: now,
+        displayName: _displayName,
       ).toMap(),
     );
     batch.set(
@@ -75,8 +86,93 @@ class HouseholdService {
       },
       SetOptions(merge: true),
     );
+
+    for (final rule in _defaultNotificationRules(now)) {
+      batch.set(
+        ref.collection('notificationRules').doc(rule.id),
+        rule.toMap(),
+      );
+    }
+
     await batch.commit();
     return household;
+  }
+
+  Stream<List<HouseholdMember>> watchMembers(String householdId) {
+    return _households
+        .doc(householdId)
+        .collection('members')
+        .snapshots()
+        .map((snapshot) {
+      final members = snapshot.docs
+          .map((doc) => HouseholdMember.fromMap(doc.id, doc.data()))
+          .toList();
+      members.sort((a, b) {
+        if (a.role != b.role) {
+          return a.role == HouseholdRole.owner ? -1 : 1;
+        }
+        return a.joinedAt.compareTo(b.joinedAt);
+      });
+      return members;
+    });
+  }
+
+  Future<void> removeMember(String householdId, String memberUid) async {
+    final householdRef = _households.doc(householdId);
+    final snapshot = await householdRef.get();
+    final data = snapshot.data();
+    if (data == null) throw StateError('Household not found');
+    if (data['ownerUid'] != _uid) {
+      throw StateError('Only the household owner can remove members');
+    }
+    if (memberUid == _uid) {
+      throw StateError('The owner cannot remove themselves');
+    }
+
+    final memberUids = List<String>.from(data['memberUids'] as List? ?? const []);
+    if (!memberUids.contains(memberUid)) return;
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final batch = _firestore.batch();
+    batch.update(householdRef, {
+      'memberUids': FieldValue.arrayRemove([memberUid]),
+      'updatedAt': now,
+    });
+    batch.delete(householdRef.collection('members').doc(memberUid));
+    await batch.commit();
+  }
+
+  Future<void> leaveHousehold(String householdId) async {
+    final uid = _uid;
+    final householdRef = _households.doc(householdId);
+    final snapshot = await householdRef.get();
+    final data = snapshot.data();
+    if (data == null) throw StateError('Household not found');
+    if (data['ownerUid'] == uid) {
+      throw StateError(
+        'The household owner cannot leave until ownership transfer is available',
+      );
+    }
+
+    final memberUids = List<String>.from(data['memberUids'] as List? ?? const []);
+    if (!memberUids.contains(uid)) return;
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final batch = _firestore.batch();
+    batch.update(householdRef, {
+      'memberUids': FieldValue.arrayRemove([uid]),
+      'updatedAt': now,
+    });
+    batch.delete(householdRef.collection('members').doc(uid));
+    batch.set(
+      _firestore.collection('users').doc(uid),
+      {
+        'currentHouseholdId': FieldValue.delete(),
+        'updatedAt': now,
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
   }
 
   Future<void> setPreferredHousehold(String householdId) async {
@@ -104,4 +200,37 @@ class HouseholdService {
     final data = doc.data();
     return data == null ? null : HouseholdMember.fromMap(doc.id, data);
   }
+
+  List<NotificationRule> _defaultNotificationRules(DateTime now) => [
+        NotificationRule(
+          id: 'default-3-days',
+          daysBefore: 3,
+          titleTemplate: '{item} expires soon',
+          bodyTemplate: '{item} expires in {days} days',
+          sendTime: '09:00',
+          enabled: true,
+          createdAt: now,
+          updatedAt: now,
+        ),
+        NotificationRule(
+          id: 'default-1-day',
+          daysBefore: 1,
+          titleTemplate: '{item} expires tomorrow',
+          bodyTemplate: '{item} expires tomorrow',
+          sendTime: '09:00',
+          enabled: true,
+          createdAt: now,
+          updatedAt: now,
+        ),
+        NotificationRule(
+          id: 'default-expiry-day',
+          daysBefore: 0,
+          titleTemplate: '{item} expires today',
+          bodyTemplate: '{item} expires today',
+          sendTime: '09:00',
+          enabled: true,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ];
 }
