@@ -1,280 +1,101 @@
-# StayFresh - Smart Grocery Tracker
+# FreshFlag
 
-A Flutter mobile application that helps users track grocery items, monitor expiry dates, and receive notifications when items are about to expire. Built with MVVM architecture and Firebase integration.
+FreshFlag is a Flutter food-expiry tracker being built for iPhone/TestFlight first. The product goal is a shared household inventory where people can scan packaged-food barcodes, set expiry dates, and receive configurable reminders before food expires.
 
-## 🚀 Features
+## Product loop
 
-- **Smart Inventory Management**: Add grocery items manually or by scanning barcodes
-- **Expiry Tracking**: Color-coded status system (Fresh/Expiring Soon/Expired)
-- **Push Notifications**: Get alerts 2 days before items expire
-- **Barcode Scanning**: Camera-based and manual barcode entry
-- **User Authentication**: Email/password login and registration
-- **Cloud Storage**: Firebase Firestore for data persistence
-- **Offline Support**: Local data with cloud sync
+`SCAN → SET EXPIRY → SHARE WITH HOUSEHOLD → GET REMINDED → CONSUME/REMOVE`
 
-## 🏗️ Architecture
+The current branch is still in stabilization. Household collaboration and backend reminder scheduling are intentionally not layered onto an untrusted single-user foundation.
 
-This project follows the **MVVM (Model-View-ViewModel)** pattern for clean separation of concerns:
+## Current implementation
 
+On `phase1-stabilization`, the app currently has:
+
+- Firebase email/password authentication.
+- Firestore-backed single-user inventory under `users/{uid}/groceryItems/{itemId}`.
+- Manual item entry.
+- Camera barcode capture using `mobile_scanner`.
+- Barcode value handoff into the saved inventory item.
+- Date-only expiry semantics persisted as `YYYY-MM-DD`.
+- Backward-compatible parsing of inherited full ISO expiry timestamps.
+- Inventory/reminder screens driven from one `GroceryViewModel` rather than a second local grocery database.
+- Local reminder scheduling as a temporary Phase 1 capability.
+- FCM permission/token plumbing, but no client-side FCM sending.
+- Device-local UI preferences using `SharedPreferences` only.
+- Phase 1 Firestore ownership rules in `firestore.rules`.
+
+## Deliberately not implemented yet
+
+- Open Food Facts product recognition from barcode — Phase 2.
+- Shared household ownership/realtime collaboration — Phase 3.
+- Household invites — Phase 4.
+- Configurable household notification rules — Phase 5.
+- Backend push worker/device-token persistence — Phase 6.
+- Notification deep linking — Phase 7.
+- Final iPhone/TestFlight configuration and polish — Phase 8.
+
+## Architecture direction
+
+FreshFlag uses Firebase as the backend direction:
+
+- Firebase Authentication
+- Cloud Firestore
+- Firebase Cloud Messaging
+- Cloud Functions / scheduled backend work in later phases
+- Firebase Emulator Suite for security/rule testing in later phases
+
+The inherited Supabase storage/token path has been removed from the active architecture.
+
+The planned household data model is:
+
+```text
+users/{uid}
+  devices/{deviceId}
+households/{householdId}
+  members/{uid}
+  items/{itemId}
+  notificationRules/{ruleId}
+invites/{inviteId}
+productCache/{normalizedBarcode}
+notificationDeliveries/{deliveryId}
 ```
-lib/
-├── models/           # Data models (GroceryItem, etc.)
-├── viewmodels/       # Business logic and state management
-├── views/
-│   ├── screens/      # App screens (Home, Add Item, Scan, etc.)
-│   └── widgets/      # Reusable UI components
-├── services/         # External services (Firebase, Barcode, Notifications)
-└── utils/           # Helper functions, constants, and themes
+
+Phase 1 intentionally still uses the transitional per-user grocery collection until the household migration.
+
+## Expiry semantics
+
+Expiry is a calendar date, not a timestamp. New data is persisted as:
+
+```text
+YYYY-MM-DD
 ```
 
-## 📱 Screens
+This avoids time-of-day/timezone changes altering the expiry day. Legacy StayFresh timestamp records are parsed and normalized on read.
 
-1. **Splash Screen** - App initialization and authentication check
-2. **Login/Register Screen** - User authentication
-3. **Home Screen** - Inventory list with tabs (All/Expiring Soon/Expired)
-4. **Add Item Screen** - Manual item entry with category selection
-5. **Scan Screen** - Barcode scanning functionality
+## Development
 
-## 🛠️ Tech Stack
+Current validated environment:
 
-- **Framework**: Flutter 3.8+
-- **State Management**: Provider pattern
-- **Backend**: Firebase (Auth, Firestore, Cloud Messaging)
-- **Barcode Scanning**: flutter_barcode_scanner
-- **Local Notifications**: flutter_local_notifications
-- **Date Formatting**: intl package
+- Ubuntu 24.04
+- Flutter 3.47.0 stable
+- Dart 3.13.0
 
-## 📦 Dependencies
+Typical validation commands:
 
-```yaml
-dependencies:
-  flutter:
-    sdk: flutter
-  provider: ^6.1.1
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.15.3
-  cloud_firestore: ^4.13.6
-  firebase_messaging: ^14.7.10
-  flutter_barcode_scanner: ^2.0.0
-  http: ^1.1.0
-  intl: ^0.18.1
-  flutter_local_notifications: ^16.3.2
-  cupertino_icons: ^1.0.8
-```
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Flutter SDK 3.8 or higher
-- Dart SDK 3.0 or higher
-- Android Studio / VS Code
-- Firebase project setup
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Dhiraj706Sardar/stayfresh.git
-   cd stayfresh
-   ```
-
-2. **Install dependencies**
-   ```bash
-   flutter pub get
-   ```
-
-3. **Environment Setup**
-   ```bash
-   # Copy environment template
-   cp .env.example .env
-   
-   # Edit .env file with your actual credentials
-   # NEVER commit .env to git - it contains sensitive data!
-   ```
-
-4. **Firebase Setup**
-   - Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
-   - Enable Authentication (Email/Password)
-   - Enable Cloud Firestore
-   - Enable Cloud Messaging
-   - Download `google-services.json` and place it in `android/app/`
-   - Get your Web API Key from Project Settings > General
-   - Add your Firebase Web API Key to `.env` file
-
-5. **Supabase Setup** (Optional - for advanced features)
-   - Create a Supabase project at [Supabase](https://supabase.com/)
-   - Get your Project URL and anon key from Settings > API
-   - Add credentials to `.env` file
-
-6. **Run the app**
-   ```bash
-   flutter run
-   ```
-
-## 🔧 Configuration
-
-### Environment Variables (.env)
-
-**🔒 SECURITY IMPORTANT**: All sensitive credentials are stored in `.env` file which is **NOT** committed to git.
-
-Required environment variables:
 ```bash
-# Supabase Configuration
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_ANON_KEY=your-supabase-anon-key
-
-# Firebase Configuration  
-FIREBASE_WEB_API_KEY=your-firebase-web-api-key
-
-# App Configuration
-APP_ENV=development
-DEBUG_MODE=true
+flutter pub get
+flutter test
+dart analyze
+flutter build linux
 ```
 
-**Setup Steps:**
-1. Copy `.env.example` to `.env`
-2. Replace placeholder values with your actual credentials
-3. **NEVER** commit `.env` to version control
-4. Share credentials securely with team members (not via git)
+The iOS project can be statically maintained from Linux, but an actual iOS build, signing, and TestFlight verification require macOS/Xcode.
 
-### Firebase Configuration
+## Project history
 
-Firebase configuration is handled automatically through:
-- `android/app/google-services.json` (Android)
-- `ios/Runner/GoogleService-Info.plist` (iOS - if needed)
-- Environment variables in `.env` file
+FreshFlag was bootstrapped from the MIT-licensed StayFresh repository while preserving its Git history. FreshFlag is maintained as an independent repository rather than a GitHub fork. See `UPSTREAM.md` and `docs/BASELINE_AUDIT.md` for provenance and audit findings.
 
-### Android Permissions
+## Important project log
 
-The following permissions are automatically handled:
-- Camera (for barcode scanning)
-- Internet (for Firebase)
-- Notifications (for expiry alerts)
-
-## 📊 Data Models
-
-### GroceryItem
-```dart
-class GroceryItem {
-  final String id;
-  final String name;
-  final String category;
-  final DateTime purchaseDate;
-  final DateTime expiryDate;
-  final String? barcode;
-  final bool isManualEntry;
-  final String userId;
-}
-```
-
-### Expiry Status
-- **Fresh**: More than 2 days until expiry (Green)
-- **Expiring Soon**: 2 days or less until expiry (Orange)
-- **Expired**: Past expiry date (Red)
-
-## 🔔 Notifications
-
-The app schedules local notifications 2 days before items expire. Notifications include:
-- Item name
-- Days until expiry
-- Tap to open app
-
-## 🎨 UI/UX Features
-
-- **Material 3 Design**: Modern, consistent UI
-- **Color-coded Status**: Visual expiry status indicators
-- **Responsive Layout**: Works on various screen sizes
-- **Smooth Animations**: Enhanced user experience
-- **Dark Mode Ready**: Theme system prepared for dark mode
-
-## Screenshots
-
-### Login Page
-<img src="assets/screenshot/login.png" width="300" />
-
-### Home Screen
-<img src="assets/screenshot/homepage.png" width="300" />
-
-### Add Item Screen
-<img src="assets/screenshot/add_item.png" width="300" />
-
-### Setting Pzge / Profile Page 
-<img src="assets/screenshot/setting.png" width="300" />
-
-
-
-## 🧪 Testing
-
-The app includes dummy data for testing UI components before Firebase integration:
-
-```dart
-// Dummy items are automatically loaded in GroceryViewModel
-// Remove _loadDummyData() call when Firebase is configured
-```
-
-## 🚀 Deployment
-
-### Android
-1. Update `android/app/build.gradle` with your signing configuration
-2. Build release APK: `flutter build apk --release`
-3. Build App Bundle: `flutter build appbundle --release`
-
-### iOS
-1. Configure signing in Xcode
-2. Build for iOS: `flutter build ios --release`
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 Code Structure
-
-### ViewModels
-- `AuthViewModel`: Handles user authentication
-- `GroceryViewModel`: Manages grocery items and business logic
-
-### Services
-- `FirebaseService`: Firebase operations (Auth, Firestore)
-- `BarcodeService`: Barcode scanning functionality
-- `NotificationService`: Local and push notifications
-
-### Utils
-- `AppTheme`: Consistent theming and colors
-- `Constants`: App-wide constants and configuration
-- `DateHelper`: Date formatting and calculations
-- `Validators`: Form validation utilities
-
-## 🐛 Known Issues
-
-- Barcode product lookup requires external API integration
-- Offline mode needs implementation
-- Dark theme needs completion
-
-## 🔮 Future Enhancements
-
-- [ ] Recipe suggestions for expiring items
-- [ ] Shopping list generation
-- [ ] Nutrition information integration
-- [ ] Barcode product database integration
-- [ ] Social sharing features
-- [ ] Analytics and insights
-- [ ] Multi-language support
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Support
-
-For support, email sardardhiraj706@gmail.com or create an issue in the repository.
-
----
-
-**StayFresh** - Never let your groceries go bad again! 🥬✨
-
-**Note:** This project is still under active development. Features and structure may change as work progresses.
+`CHANGELOG.md` is the persistent engineering log. It records each major implementation, validation result, blocker, and architectural decision so project work can resume without repeating prior investigation.
