@@ -57,34 +57,43 @@ Validated on Ubuntu at code HEAD `6ff74a9047ca5fdde3eaa6fe2e59da44622bb69f`:
 - `flutter build linux --no-pub`: **success**.
 - Working tree: clean.
 
-### Slice 2 — single write path + barcode handoff — AWAITING RUNTIME RE-VALIDATION
+### Slice 2 — single write path + barcode handoff — VALIDATED
 
-Implemented after Slice 1 validation:
+Implemented:
 
-- `AddItemScreen` now writes inventory only through `GroceryViewModel`; direct Hive/local inventory persistence was removed from the screen.
-- Add Item supports `initialBarcode`, stores the supplied barcode on the item, and keeps the existing optional image path through the ViewModel.
-- Barcode scanner was simplified and now passes the captured barcode into `AddItemScreen` rather than discarding it.
-- Barcode product recognition remains intentionally deferred to Phase 2; this slice only guarantees barcode preservation.
-- Removed anonymous sign-in support from `FirebaseAuthService`.
+- `AddItemScreen` writes inventory only through `GroceryViewModel`; direct Hive/local inventory persistence was removed from the screen.
+- Add Item supports `initialBarcode` and stores the supplied barcode on the item.
+- Barcode scanner passes the captured barcode into `AddItemScreen` instead of discarding it.
+- Barcode product recognition remains deferred to Phase 2.
+- Removed anonymous sign-in support from `FirebaseAuthService` and `AuthViewModel`.
 - Removed unused Google Sign-In state from the authentication service.
 - Removed duplicate/unreachable Firebase Auth exception cases.
-- `hasValidToken()` now reflects the actual Firebase authenticated session rather than treating a cached SharedPreferences token as proof of a valid session.
+- `hasValidToken()` now reflects the actual Firebase authenticated session instead of cached token presence.
 
-Initial Ubuntu validation at checkpoint `64b0ef0bc0d0abd7a8260674c3617e70f172bc62` found:
+The first Ubuntu checkpoint exposed two compile blockers (nullable barcode closure value and a stale anonymous-auth ViewModel call). Both were fixed in commits `e6f299d2b3c7b05982f5420e49f8bba517f8bff5` and `439cca30501524546069221dd6cc551bb346bdd4`.
+
+Final Ubuntu validation at HEAD `a4b980f6a27a275f10951398c1d6c98af131c89f`:
 
 - `flutter test --no-pub`: **3 tests passed**.
-- `dart analyze`: **21 issues**, including **2 compile errors**.
-- `flutter build linux --no-pub`: **failed** because of the same 2 compile errors.
+- `dart analyze`: **19 issues**, down from 27; **no errors**.
+- `flutter build linux --no-pub`: **success**.
 - Working tree: clean.
 
-Compile blockers found and fixed:
+Result: Slice 2 accepted.
 
-1. `BarcodeScannerScreen` held the scanned barcode in a nullable local variable captured by a bottom-sheet closure; Dart therefore would not promote it to non-null. The value is now copied into a final non-null `scannedValue` after the null guard and that value is used throughout the handoff.
-2. `AuthViewModel` still exposed a stale `signInAnonymously()` method after anonymous auth was removed from `FirebaseAuthService`. The stale ViewModel method has now been removed.
+### Slice 3 — date-only expiry semantics — AWAITING RUNTIME VALIDATION
 
-Fix commits:
+Implemented:
 
-- `e6f299d2b3c7b05982f5420e49f8bba517f8bff5` — preserve non-null scanned barcode value.
-- `439cca30501524546069221dd6cc551bb346bdd4` — remove anonymous auth from ViewModel.
+- `GroceryItem.expiryDate` remains a `DateTime` for compatibility with inherited Flutter/Hive code, but construction now normalizes it to a calendar date at local midnight.
+- Firestore/JSON serialization now stores expiry as strict `YYYY-MM-DD`, matching the FreshFlag data contract.
+- Legacy inherited records containing full ISO timestamps remain readable; they are normalized to date-only semantics when loaded.
+- Calendar-day expiry calculations now operate directly on the normalized expiry date.
+- Expanded tests from 3 to 4 cases, including exact date-only serialization and legacy timestamp migration behavior.
 
-Current constraint: the corrected Slice 2 must be compiled/tested on Ubuntu before deeper persistence/model changes are layered on top.
+Relevant commits:
+
+- `b3de1228996949185be59dbef8984ad8a43e11ff` — enforce date-only expiry semantics.
+- `90f62d6856f73a27a9ed27c9fe535ec53992803c` — cover date-only persistence and legacy migration.
+
+Current constraint: this model/persistence change must now be run through Flutter tests, analyzer, and the Linux compiler before additional architectural changes are layered on top.
