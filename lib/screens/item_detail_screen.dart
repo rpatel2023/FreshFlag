@@ -72,6 +72,8 @@ class ItemDetailScreen extends StatelessWidget {
                         ),
                         _DetailRow(label: 'Status', value: _statusText(item)),
                         _DetailRow(label: 'Quantity', value: '${item.quantity}'),
+                        if (item.location != null && item.location!.trim().isNotEmpty)
+                          _DetailRow(label: 'Location', value: item.location!.trim()),
                         if (item.barcode != null && item.barcode!.isNotEmpty)
                           _DetailRow(label: 'Barcode', value: item.barcode!),
                         if (item.notes != null && item.notes!.trim().isNotEmpty)
