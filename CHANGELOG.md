@@ -327,3 +327,19 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
   - TypeScript build: **success**
 - Generated `functions/lib/` and `functions/node_modules/` were removed and are not committed.
 - `functions/package-lock.json` is now committed for reproducible backend dependency resolution.
+
+### Production Firebase backend deployment — COMPLETE
+
+- Deployed the tested Firestore security rules to Firebase project `freshflag`.
+- Installed and switched the Ubuntu Functions runtime to Node.js 22 using `nvm`.
+- Resolved the Functions production dependency audit to **0 vulnerabilities** with scoped `uuid` overrides and a committed `functions/package-lock.json`.
+- Initial Cloud Functions deployment partially succeeded because the shared Gen 2 source bucket creation returned HTTP 409 during concurrent first-time provisioning.
+- Retried the deployment after the source infrastructure existed; all remaining functions deployed successfully.
+- Configured Artifact Registry cleanup to automatically delete container images older than **7 days**.
+- Verified the production Functions inventory:
+  - `getDiscordIntegrationStatus` — v2 callable, 256 MB, Node.js 22
+  - `setDiscordIntegration` — v2 callable, 256 MB, Node.js 22
+  - `testDiscordIntegration` — v2 callable, 256 MB, Node.js 22
+  - `processExpiryReminders` — v2 scheduled, 512 MB, Node.js 22
+  - `pruneStaleDeviceRegistrations` — v2 scheduled, 256 MB, Node.js 22
+- All Functions are deployed in `us-central1`.
