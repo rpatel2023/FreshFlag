@@ -1,13 +1,24 @@
 name: Flutter CI
 
 on:
-  push:
-    branches:
-      - main
-      - 'phase*'
   pull_request:
     branches:
       - main
+    paths:
+      - 'lib/**'
+      - 'test/**'
+      - 'assets/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'linux/**'
+      - 'macos/**'
+      - 'windows/**'
+      - 'web/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'analysis_options.yaml'
+      - '.github/workflows/flutter-ci.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
