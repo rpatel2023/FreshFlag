@@ -30,8 +30,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
       stream: authService.authStateChanges,
       initialData: authService.currentUser,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting && snapshot.data == null) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         final user = snapshot.data;
@@ -46,14 +49,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
           _boundHouseholdId = null;
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (!mounted) return;
-            await FCMService.instance.syncRegistrationForCurrentUser();
+            await FCMService.instance.syncPushPreferenceForCurrentUser();
             if (!mounted) return;
             await context.read<HouseholdViewModel>().initializeForUser(user.uid);
           });
         }
 
         if (household.isLoading && household.current == null) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         if (household.current == null) {
