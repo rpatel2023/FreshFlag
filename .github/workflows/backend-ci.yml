@@ -1,13 +1,16 @@
 name: Backend CI
 
 on:
-  push:
-    branches:
-      - main
-      - 'phase*'
   pull_request:
     branches:
       - main
+    paths:
+      - 'functions/**'
+      - 'security-tests/**'
+      - 'firestore.rules'
+      - 'firebase.json'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
