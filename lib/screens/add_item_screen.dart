@@ -12,11 +12,15 @@ class AddItemScreen extends StatefulWidget {
     super.key,
     this.initialBarcode,
     this.initialName,
+    this.initialBrand,
+    this.initialImageUrl,
     this.existingItem,
   });
 
   final String? initialBarcode;
   final String? initialName;
+  final String? initialBrand;
+  final String? initialImageUrl;
   final GroceryItem? existingItem;
 
   @override
@@ -124,7 +128,15 @@ class _AddItemScreenState extends State<AddItemScreen> {
                                 ? 'Scanned barcode'
                                 : 'Product recognized',
                       ),
-                      subtitle: Text(_barcode!),
+                      subtitle: Text(
+                        [
+                          if (widget.initialBrand?.trim().isNotEmpty == true)
+                            widget.initialBrand!.trim(),
+                          _barcode!,
+                        ].join('\n'),
+                      ),
+                      isThreeLine:
+                          widget.initialBrand?.trim().isNotEmpty == true,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingM),
@@ -284,9 +296,11 @@ class _AddItemScreenState extends State<AddItemScreen> {
             quantity: int.parse(_quantityController.text),
             category: _category,
             barcode: widget.initialBarcode,
+            brand: widget.initialBrand,
             addedDate: DateTime.now(),
             expiryDate: _expiryDate!,
             location: location,
+            imageUrl: widget.initialImageUrl,
             notes: notes,
           )
         : GroceryItem(
@@ -295,6 +309,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
             quantity: int.parse(_quantityController.text),
             category: _category,
             barcode: existing.barcode,
+            brand: existing.brand,
             addedDate: existing.addedDate,
             expiryDate: _expiryDate!,
             location: location,
