@@ -78,7 +78,7 @@ Repository integration:
 - Pull request #1 merged to `main` as `7c85d1d434b9f64800808581f3e3717a926ca128`.
 - PR included the validated Phase 1 foundation and initial Phase 2 barcode recognition.
 
-## 2026-08-14 — Phase 3 household-owned inventory — AWAITING RUNTIME VALIDATION
+## 2026-08-14 — Phase 3 household-owned inventory — VALIDATED
 
 Branch: `phase3-households`
 
@@ -90,15 +90,15 @@ Branch: `phase3-households`
 - Added `HouseholdService` for discovering the caller's households, persisting preferred household, creating the first household, and reading current membership.
 - Added `HouseholdViewModel` for active household selection and owner/member state.
 - First authenticated user with no household is routed to `HouseholdSetupScreen` rather than silently getting an inferred timezone.
-- Settings now displays household name, timezone, role, and supports switching when the user belongs to multiple households.
+- Settings displays household name, timezone, role, and supports switching when the user belongs to multiple households.
 
 ### Household-owned inventory
 
 - Inventory path changed from user-owned storage to `households/{householdId}/items/{itemId}`.
 - `FirebaseFirestoreService` now requires an active household instead of deriving a user-scoped collection.
-- `GroceryItem` now carries `householdId`, `createdByUid`, `updatedByUid`, and `updatedAt` audit fields while remaining backward-readable for old records lacking those fields.
+- `GroceryItem` carries `householdId`, `createdByUid`, `updatedByUid`, and `updatedAt` audit fields while remaining backward-readable for old records lacking those fields.
 - `GroceryViewModel` binds to the selected household and enriches writes with household/audit metadata.
-- Inventory state now uses a Firestore snapshot subscription so changes propagate to all active members in real time instead of requiring manual refresh.
+- Inventory state uses a Firestore snapshot subscription so changes propagate to all active members in real time instead of requiring manual refresh.
 - Switching/signing out cancels the previous household subscription and clears in-memory inventory.
 
 ### Security rules
@@ -111,12 +111,15 @@ Branch: `phase3-households`
 - Inventory reads/writes require household membership.
 - Item create/update rules enforce household ID and audit UIDs.
 
-### Tests
+### Tests and Ubuntu validation
 
 - Existing persistence and Open Food Facts tests retained.
 - Added household serialization/role tests.
 - Expanded grocery persistence coverage to include household/audit fields and backward compatibility.
+- `flutter test --no-pub`: **9 passed**.
+- `dart analyze`: **No issues found**.
+- `flutter build linux --no-pub`: **success**.
+- Working tree after validation: **clean**.
+- Validated branch HEAD: `4111d95ee12c08d5a0932338fc55760670574b1a` before this changelog update.
 
-### Current runtime boundary
-
-This slice changes app routing, Firestore paths, snapshot subscriptions, security rules, item serialization, and test expectations. It now requires Flutter tests/analyzer/Linux compilation on Ubuntu before Phase 4 invite logic is layered on top.
+Result: Phase 3 household ownership and real-time shared inventory are accepted and ready for repository integration.
