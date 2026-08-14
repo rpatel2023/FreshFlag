@@ -40,11 +40,8 @@ interface DeviceRegistration {
 export const getDiscordIntegrationStatus = onCall(
   {region: 'us-central1'},
   async (request) => {
-    const householdId = requiredString(request.data?.householdId, 'householdId');
     const uid = requireAuthenticatedUid(request.auth?.uid);
-    await requireHouseholdMember(householdId, uid);
-
-    const integration = await discordIntegrationRef(householdId).get();
+    const integration = await discordIntegrationRef(uid).get();
     const data = integration.data();
     return {
       configured: typeof data?.webhookUrl === 'string' && data.webhookUrl.length > 0,
@@ -56,15 +53,12 @@ export const getDiscordIntegrationStatus = onCall(
 export const setDiscordIntegration = onCall(
   {region: 'us-central1'},
   async (request) => {
-    const householdId = requiredString(request.data?.householdId, 'householdId');
     const uid = requireAuthenticatedUid(request.auth?.uid);
-    await requireHouseholdOwner(householdId, uid);
-
     const enabled = request.data?.enabled === true;
     const webhookRaw = typeof request.data?.webhookUrl === 'string'
       ? request.data.webhookUrl.trim()
       : '';
-    const ref = discordIntegrationRef(householdId);
+    const ref = discordIntegrationRef(uid);
     const existing = await ref.get();
     const existingUrl = existing.data()?.webhookUrl;
 
@@ -80,14 +74,17 @@ export const setDiscordIntegration = onCall(
     }
 
     if (enabled && webhookUrl == null) {
-      throw new HttpsError('failed-precondition', 'A Discord webhook URL is required before enabling Discord reminders.');
+      throw new HttpsError(
+        'failed-precondition',
+        'A Discord webhook URL is required before enabling Discord reminders.',
+      );
     }
 
     await ref.set({
       type: 'discord',
       enabled,
       ...(webhookUrl == null ? {} : {webhookUrl}),
-      updatedByUid: uid,
+      uid,
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
 
@@ -98,14 +95,8 @@ export const setDiscordIntegration = onCall(
 export const testDiscordIntegration = onCall(
   {region: 'us-central1', timeoutSeconds: 30},
   async (request) => {
-    const householdId = requiredString(request.data?.householdId, 'householdId');
     const uid = requireAuthenticatedUid(request.auth?.uid);
-    await requireHouseholdOwner(householdId, uid);
-
-    const [householdDoc, integrationDoc] = await Promise.all([
-      db.collection('households').doc(householdId).get(),
-      discordIntegrationRef(householdId).get(),
-    ]);
+    const integrationDoc = await discordIntegrationRef(uid).get();
     const webhookUrl = integrationDoc.data()?.webhookUrl;
     if (typeof webhookUrl !== 'string' || webhookUrl.length === 0) {
       throw new HttpsError('failed-precondition', 'Configure a Discord webhook first.');
@@ -113,17 +104,20 @@ export const testDiscordIntegration = onCall(
 
     try {
       await sendDiscordWebhook(webhookUrl, {
-        householdName: String(householdDoc.data()?.name ?? 'FreshFlag household'),
-        itemName: 'FreshFlag test reminder',
+        householdName: 'FreshFlag',
+        itemName: 'Test reminder',
         expiryDate: DateTime.utc().toISODate() ?? 'today',
         title: 'FreshFlag Discord reminders are connected',
-        body: 'This test confirms your household can receive expiry reminders in Discord.',
+        body: 'This test confirms your personal Discord destination can receive expiry reminders.',
         quantity: 1,
         location: null,
       });
     } catch (error) {
-      logger.error('Discord test delivery failed', {householdId, error});
-      throw new HttpsError('unavailable', 'Discord rejected the test message. Check the webhook and try again.');
+      logger.error('Discord test delivery failed', {uid, error});
+      throw new HttpsError(
+        'unavailable',
+        'Discord rejected the test message. Check the webhook and try again.',
+      );
     }
 
     return {sent: true};
@@ -153,12 +147,10 @@ export const processExpiryReminders = onSchedule(
 
       if (timezone == null || memberUids.length === 0) continue;
 
-      const [rules, discordConfig] = await Promise.all([
-        householdDoc.ref.collection('notificationRules')
-          .where('enabled', '==', true)
-          .get(),
-        loadDiscordIntegration(householdDoc.id),
-      ]);
+      const rules = await householdDoc.ref.collection('notificationRules')
+        .where('enabled', '==', true)
+        .get();
+      const discordConfigCache = new Map<string, DiscordWebhookConfig | null>();
 
       for (const ruleDoc of rules.docs) {
         const rule = ruleDoc.data() as ReminderRuleData;
@@ -190,20 +182,25 @@ export const processExpiryReminders = onSchedule(
             location: typeof rawItem.location === 'string' ? rawItem.location : null,
           };
 
-          if (discordConfig?.enabled === true) {
-            await deliverToDiscord({
-              householdId: householdDoc.id,
-              householdName,
-              itemId: itemDoc.id,
-              ruleId: ruleDoc.id,
-              rule,
-              item,
-              webhookUrl: discordConfig.webhookUrl,
-              nowUtc,
-            });
-          }
-
           for (const recipientUid of memberUids) {
+            const discordConfig = await getCachedDiscordIntegration(
+              recipientUid,
+              discordConfigCache,
+            );
+            if (discordConfig?.enabled === true) {
+              await deliverToDiscord({
+                householdId: householdDoc.id,
+                householdName,
+                itemId: itemDoc.id,
+                ruleId: ruleDoc.id,
+                rule,
+                item,
+                recipientUid,
+                webhookUrl: discordConfig.webhookUrl,
+                nowUtc,
+              });
+            }
+
             await deliverToRecipient({
               householdId: householdDoc.id,
               itemId: itemDoc.id,
@@ -253,6 +250,7 @@ async function deliverToDiscord(args: {
   ruleId: string;
   rule: ReminderRuleData;
   item: ReminderItemData;
+  recipientUid: string;
   webhookUrl: string;
   nowUtc: DateTime;
 }): Promise<void> {
@@ -261,6 +259,7 @@ async function deliverToDiscord(args: {
     args.itemId,
     args.ruleId,
     args.item.expiryDate,
+    args.recipientUid,
   );
   const deliveryRef = db.collection('notificationDeliveries').doc(id);
   const claimed = await claimDelivery(deliveryRef, {
@@ -269,6 +268,7 @@ async function deliverToDiscord(args: {
     itemId: args.itemId,
     ruleId: args.ruleId,
     expiryDate: args.item.expiryDate,
+    recipientUid: args.recipientUid,
   }, args.nowUtc);
   if (!claimed) return;
 
@@ -302,7 +302,11 @@ async function deliverToDiscord(args: {
       failureCount: 1,
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
-    logger.error('Discord reminder delivery failed', {deliveryId: id, error});
+    logger.error('Discord reminder delivery failed', {
+      deliveryId: id,
+      recipientUid: args.recipientUid,
+      error,
+    });
   }
 }
 
@@ -407,8 +411,18 @@ async function activeDeviceRegistrations(
   });
 }
 
-async function loadDiscordIntegration(householdId: string): Promise<DiscordWebhookConfig | null> {
-  const snapshot = await discordIntegrationRef(householdId).get();
+async function getCachedDiscordIntegration(
+  uid: string,
+  cache: Map<string, DiscordWebhookConfig | null>,
+): Promise<DiscordWebhookConfig | null> {
+  if (cache.has(uid)) return cache.get(uid) ?? null;
+  const config = await loadDiscordIntegration(uid);
+  cache.set(uid, config);
+  return config;
+}
+
+async function loadDiscordIntegration(uid: string): Promise<DiscordWebhookConfig | null> {
+  const snapshot = await discordIntegrationRef(uid).get();
   const data = snapshot.data();
   if (data?.enabled !== true || typeof data.webhookUrl !== 'string') return null;
 
@@ -418,27 +432,13 @@ async function loadDiscordIntegration(householdId: string): Promise<DiscordWebho
       webhookUrl: normalizeDiscordWebhookUrl(data.webhookUrl),
     };
   } catch (error) {
-    logger.error('Ignoring invalid stored Discord integration', {householdId, error});
+    logger.error('Ignoring invalid stored Discord integration', {uid, error});
     return null;
   }
 }
 
-function discordIntegrationRef(householdId: string): DocumentReference {
-  return db.collection('householdIntegrations').doc(householdId);
-}
-
-async function requireHouseholdMember(householdId: string, uid: string): Promise<void> {
-  const member = await db.collection('households').doc(householdId).collection('members').doc(uid).get();
-  if (!member.exists) {
-    throw new HttpsError('permission-denied', 'You are not a member of this household.');
-  }
-}
-
-async function requireHouseholdOwner(householdId: string, uid: string): Promise<void> {
-  const member = await db.collection('households').doc(householdId).collection('members').doc(uid).get();
-  if (!member.exists || member.data()?.role !== 'owner') {
-    throw new HttpsError('permission-denied', 'Only the household owner can manage Discord reminders.');
-  }
+function discordIntegrationRef(uid: string): DocumentReference {
+  return db.collection('userIntegrations').doc(uid);
 }
 
 function requireAuthenticatedUid(uid: string | undefined): string {
@@ -446,13 +446,6 @@ function requireAuthenticatedUid(uid: string | undefined): string {
     throw new HttpsError('unauthenticated', 'Sign in to manage Discord reminders.');
   }
   return uid;
-}
-
-function requiredString(value: unknown, field: string): string {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new HttpsError('invalid-argument', `${field} is required.`);
-  }
-  return value.trim();
 }
 
 async function claimDelivery(
