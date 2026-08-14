@@ -23,22 +23,20 @@ class DiscordReminderService {
 
   static final DiscordReminderService instance = DiscordReminderService._();
 
-  FirebaseFunctions get _functions => FirebaseFunctions.instanceFor(region: 'us-central1');
+  FirebaseFunctions get _functions =>
+      FirebaseFunctions.instanceFor(region: 'us-central1');
 
-  Future<DiscordIntegrationStatus> getStatus(String householdId) async {
-    final result = await _functions.httpsCallable('getDiscordIntegrationStatus').call({
-      'householdId': householdId,
-    });
+  Future<DiscordIntegrationStatus> getStatus() async {
+    final result =
+        await _functions.httpsCallable('getDiscordIntegrationStatus').call();
     return DiscordIntegrationStatus.fromData(result.data);
   }
 
   Future<DiscordIntegrationStatus> save({
-    required String householdId,
     required bool enabled,
     String? webhookUrl,
   }) async {
     final result = await _functions.httpsCallable('setDiscordIntegration').call({
-      'householdId': householdId,
       'enabled': enabled,
       if (webhookUrl != null && webhookUrl.trim().isNotEmpty)
         'webhookUrl': webhookUrl.trim(),
@@ -46,9 +44,7 @@ class DiscordReminderService {
     return DiscordIntegrationStatus.fromData(result.data);
   }
 
-  Future<void> sendTest(String householdId) async {
-    await _functions.httpsCallable('testDiscordIntegration').call({
-      'householdId': householdId,
-    });
+  Future<void> sendTest() async {
+    await _functions.httpsCallable('testDiscordIntegration').call();
   }
 }

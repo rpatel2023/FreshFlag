@@ -43,7 +43,7 @@ The MVP is complete only when this scenario works reliably:
 9. The item appears on both phones without manual refresh.
 10. The household has a custom reminder rule.
 11. The backend evaluates the rule in the household timezone.
-12. The household receives the intended reminder through at least one production-capable channel; Discord is the reliable zero-fee fallback, while FCM/APNs remains supported where the signing path allows it.
+12. Each participating household member can receive the intended reminder through at least one production-capable personal channel; Discord is the reliable zero-fee fallback, while FCM/APNs remains supported where the signing path allows it.
 13. When native push is available, tapping the alert opens the correct household item.
 14. Either member marks the item consumed/removed.
 15. Both phones reflect the updated shared state.
@@ -236,16 +236,16 @@ Implemented architecture:
 ```text
 Firestore items + household rules
   -> scheduled Firebase Function
-  -> determine due deliveries
-  -> idempotent delivery ledger
-  -> +--------------------+
-     |                    |
-     v                    v
-  FCM/APNs            Discord webhook
-  device push         shared household channel
+  -> determine due household members
+  -> for each member
+       +--------------------+
+       |                    |
+       v                    v
+    FCM/APNs            personal Discord webhook
+    device push         if that member enabled it
 ```
 
-Discord is a parallel household reminder channel, not merely an error fallback after an FCM API call. A successful FCM send acknowledgement does not prove a free-sideloaded iPhone displayed the notification.
+Discord is a parallel personal reminder channel, not merely an error fallback after an FCM API call. A successful FCM send acknowledgement does not prove a free-sideloaded iPhone displayed the notification.
 
 Do not reintroduce client-only expiry scheduling as the authoritative reminder path.
 
@@ -255,16 +255,18 @@ For the zero-fee private distribution path, Discord is the reliable reminder cha
 
 Properties:
 
-- one Discord incoming webhook per household;
-- owner-managed through authenticated callable Functions;
-- webhook URL stored only in backend-owned `householdIntegrations/{householdId}`;
-- regular clients, including the household owner, cannot read/write the secret directly;
+- one Discord incoming webhook per FreshFlag user;
+- each signed-in user manages only their own integration through authenticated callable Functions;
+- webhook URL stored only in backend-owned `userIntegrations/{uid}`;
+- regular clients, including the user who owns the integration, cannot read/write the secret directly;
+- no household-owner permission is required for personal Discord configuration;
+- different household members may use different Discord destinations or opt out independently;
 - webhook URLs are restricted to valid Discord HTTPS webhook hosts/paths;
 - `allowed_mentions` is disabled for user-derived reminder text;
-- one Discord reminder is emitted per household/item/rule/expiry event, not once per member;
+- one Discord reminder is emitted per household/item/rule/expiry/recipient event;
 - Discord has its own deterministic delivery identity/ledger claim independent of FCM recipient delivery IDs.
 
-Discord configuration lives in Settings and includes save/replace, enable/disable, status, and a test-message action.
+Discord configuration lives in personal Settings and includes save/replace, enable/disable, status, and a test-message action. The abandoned `householdIntegrations/{householdId}` collection remains explicitly client-denied for safety but is no longer part of the active design.
 
 ## Notification rules
 
@@ -322,7 +324,7 @@ FCM recipient delivery identity is deterministically derived from exactly:
 householdId + itemId + ruleId + expiryDate + recipientUid
 ```
 
-Discord uses a separate deterministic household-level delivery ID derived from the household/item/rule/expiry event.
+Discord uses a separate deterministic channel-specific ID derived from the same household/item/rule/expiry/recipient tuple plus a Discord discriminator.
 
 The backend owns `notificationDeliveries`. Regular clients must not forge delivery records.
 
@@ -388,7 +390,7 @@ At minimum:
 7. notification deliveries are backend-managed;
 8. invite acceptance validates a real active invite;
 9. server-owned fields are not freely client-writable;
-10. integration secrets such as Discord webhook URLs are backend-only and client-denied.
+10. integration secrets such as Discord webhook URLs are backend-only and client-denied, even from the user whose integration document contains the secret.
 
 Use Firebase Emulator tests for these boundaries.
 
@@ -422,11 +424,11 @@ Ask for camera permission when scanning is first used. Ask for notifications whe
 
 - Flutter client; no Swift rewrite for the MVP.
 - Firebase Auth + Firestore + FCM + Functions/Scheduler + Emulator Suite.
-- Discord incoming webhooks as the household-level zero-fee reminder fallback.
+- Discord incoming webhooks as the per-user zero-fee reminder fallback.
 - Open Food Facts for packaged-product lookup.
 - Household-owned inventory.
 - Date-only expiry values.
-- Backend-owned shared reminders.
+- Backend-owned shared reminder timing with per-user delivery channels.
 - SideStore/free Apple Account as the first private iPhone distribution path; TestFlight is optional later rather than an MVP requirement.
 - Permissive/MIT-compatible source strategy.
 
@@ -501,7 +503,7 @@ Particularly test:
 - idempotency identities;
 - household/invite authorization;
 - notification-target parsing/deep links;
-- Discord webhook validation and backend-only integration-secret access;
+- Discord webhook validation, per-recipient identity, and backend-only integration-secret access;
 - light/dark theme regression behavior.
 
 ## Phase map
@@ -515,7 +517,7 @@ Particularly test:
 - Phase 6: backend scheduled push worker/security harness — complete source; production deployment pending.
 - Phase 7: notification deep linking/item detail — complete source; physical-device validation pending where native push is available.
 - Phase 8: iOS/Firebase production configuration, private sideload build, physical testing, and optional later TestFlight — active.
-- Discord household reminder fallback and app-wide dark mode — integrated and source-validated as part of final MVP preparation.
+- Per-user Discord reminder fallback and app-wide dark mode — source implementation complete pending final validation/integration.
 
 ## Phase 8 release gate
 
@@ -529,7 +531,7 @@ Before the first private iPhone release:
 - complete modern Flutter Swift Package Manager/Xcode migration on a macOS builder;
 - generate an installable unsigned/ad-hoc iOS artifact suitable for the chosen sideload workflow;
 - bootstrap SideStore on both target iPhones using the free Apple Account path and keep the 7-day refresh requirement in mind;
-- configure the household Discord webhook and prove scheduled Discord reminders arrive;
+- configure each user's personal Discord webhook and prove scheduled Discord reminders arrive independently for both accounts;
 - test FCM/APNs if the free signing path exposes the required entitlement, but do not make native push a blocker for the zero-fee household build;
 - pass the physical two-account/two-device acceptance scenario;
 - if the project later moves to TestFlight/App Store distribution, then complete Apple Developer Program signing, APNs production credentials, App Store Connect privacy/beta metadata, archive, and upload.

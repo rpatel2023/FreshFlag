@@ -12,7 +12,7 @@ FreshFlag is a Flutter client backed by Firebase. This document describes the im
 - Firebase Authentication: email/password.
 - Cloud Firestore: household state, members, inventory, notification rules, device registrations, invites.
 - Firebase Cloud Messaging: push registration and notification-tap handling where the iOS signing path exposes the required capability.
-- Firebase callable Functions: owner-managed Discord integration status/save/test operations.
+- Firebase callable Functions: authenticated per-user Discord integration status/save/test operations.
 - `mobile_scanner`: retail barcode capture.
 - Open Food Facts: packaged-product metadata lookup.
 - `provider` + ViewModels for authenticated household/inventory state.
@@ -59,19 +59,20 @@ Expiry reminders are backend-driven only. The client does not schedule authorita
 ```text
 Firestore household/items/rules
         -> scheduled Cloud Function
-        -> deterministic delivery claim
-        -> +------------------------+
-           |                        |
-           v                        v
-        FCM multicast          Discord webhook
-        recipient devices      shared household channel
-           |
-           v
-        APNs/device push
-        when signing permits
+        -> determine household members
+        -> for each member
+             +------------------------+
+             |                        |
+             v                        v
+          FCM delivery           personal Discord webhook
+          recipient devices      when that user enabled it
+             |
+             v
+          APNs/device push
+          when signing permits
 ```
 
-The scheduled worker runs every five minutes and evaluates each rule in the household IANA timezone.
+The scheduled worker runs every five minutes and evaluates each rule in the household IANA timezone. Household rules decide when and what should be sent; each member independently chooses which personal delivery channels they use.
 
 FCM recipient delivery identity is deterministic from:
 
@@ -79,7 +80,7 @@ FCM recipient delivery identity is deterministic from:
 householdId + itemId + ruleId + expiryDate + recipientUid
 ```
 
-Discord uses its own deterministic household-level identity derived from the household/item/rule/expiry event, so the shared channel receives one message rather than one per member.
+Discord uses a channel-specific deterministic identity containing the same household/item/rule/expiry/recipient tuple plus a Discord discriminator. This gives each member one Discord delivery without collisions with FCM or another member's Discord delivery.
 
 `notificationDeliveries/{deliveryId}` is backend-managed and client-denied. Claims use a lease to prevent duplicate sends while allowing recovery after a stale/crashed claim.
 
@@ -89,25 +90,29 @@ Each installation stores a stable random `deviceId` locally and writes its curre
 users/{uid}/devices/{deviceId}
 ```
 
-The backend honors `notificationsEnabled`, drops invalid FCM registrations, and prunes stale registrations.
+The backend honors the user's FCM `notificationsEnabled` preference, drops invalid FCM registrations, and prunes stale registrations. Discord has a separate enabled preference and remains independent of FCM opt-out/device availability.
 
 ## Discord integration
 
-One household may have one Discord incoming webhook configuration stored in backend-only:
+Each FreshFlag user may configure one personal Discord incoming webhook stored in backend-only:
 
 ```text
-householdIntegrations/{householdId}
+userIntegrations/{uid}
 ```
 
-Regular Firestore clients cannot read or write this collection, including the owner. The owner instead uses authenticated callable Functions to:
+Regular Firestore clients cannot read or write this collection, including the user who owns the integration. The signed-in user instead uses authenticated callable Functions to:
 
-- read configured/enabled status without receiving the secret;
-- save/replace and enable/disable the webhook;
-- send a test message.
+- read their configured/enabled status without receiving the secret;
+- save/replace and enable/disable their own webhook;
+- send a test message to their own destination.
+
+No household-owner permission is required for personal Discord configuration. A household member may enable Discord even if the household owner does not, and different members may point to different Discord channels.
 
 Webhook URLs are normalized and restricted to HTTPS Discord webhook hosts/paths before storage/use. Discord payloads disable `allowed_mentions` so user-controlled item/template text cannot trigger mass mentions.
 
 Discord is a parallel production reminder channel, not an FCM-error fallback. This is important for the zero-fee SideStore/free-Apple-Account distribution path, where native APNs entitlement behavior cannot be assumed.
+
+The abandoned `householdIntegrations/{householdId}` path remains explicitly client-denied so accidental old development data cannot expose secrets.
 
 ## Notification deep linking
 
@@ -139,7 +144,7 @@ Firestore rules are application logic. Emulator-backed tests cover:
 - owner escalation rejection;
 - cross-household item-write rejection;
 - client denial of notification-delivery records;
-- client denial of backend-only household integration secrets.
+- client denial of backend-only per-user integration secrets, including the user's own webhook document.
 
 ## Backend
 
@@ -149,8 +154,8 @@ The backend contains:
 
 - scheduled expiry-reminder processing;
 - per-recipient FCM delivery;
-- household-level Discord webhook delivery;
-- callable Discord integration management/test endpoints;
+- per-recipient Discord webhook delivery;
+- authenticated per-user Discord integration management/test endpoints;
 - stale-device pruning;
 - deterministic delivery claims/ledger handling.
 
@@ -163,7 +168,7 @@ The backend contains:
 
 ## iOS/private distribution status
 
-Source implementation is complete through shared Discord fallback, dark mode, and native notification deep linking. Production iPhone use remains gated by external Phase 8 configuration:
+Source implementation is complete through per-user Discord fallback, dark mode, and native notification deep linking. Production iPhone use remains gated by external Phase 8 configuration:
 
 - FreshFlag-owned Firebase project/app configuration;
 - bundle identifier `com.rpatel2023.freshflag`;
@@ -171,7 +176,7 @@ Source implementation is complete through shared Discord fallback, dark mode, an
 - modern Flutter Swift Package Manager migration/build on macOS/Xcode;
 - create an iOS artifact suitable for private sideloading;
 - bootstrap SideStore/free Apple Account on the two target iPhones;
-- configure and physically validate the Discord household reminder path;
+- configure and physically validate each user's Discord reminder destination;
 - physically validate camera, realtime household sharing, and item lifecycle;
 - test APNs/FCM if the chosen free signing path provides the capability, but do not make native push mandatory for the zero-fee build.
 

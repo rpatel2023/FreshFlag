@@ -25,12 +25,14 @@ test('rejects non-Discord or malformed webhook URLs', () => {
   }
 });
 
-test('Discord delivery ID is deterministic and channel-specific', () => {
-  const first = discordDeliveryId('h1', 'i1', 'r1', '2026-08-20');
-  const second = discordDeliveryId('h1', 'i1', 'r1', '2026-08-20');
-  const changed = discordDeliveryId('h1', 'i2', 'r1', '2026-08-20');
+test('Discord delivery ID is deterministic and recipient-specific', () => {
+  const first = discordDeliveryId('h1', 'i1', 'r1', '2026-08-20', 'u1');
+  const second = discordDeliveryId('h1', 'i1', 'r1', '2026-08-20', 'u1');
+  const changedItem = discordDeliveryId('h1', 'i2', 'r1', '2026-08-20', 'u1');
+  const changedRecipient = discordDeliveryId('h1', 'i1', 'r1', '2026-08-20', 'u2');
   assert.equal(first, second);
-  assert.notEqual(first, changed);
+  assert.notEqual(first, changedItem);
+  assert.notEqual(first, changedRecipient);
   assert.match(first, /^[a-f0-9]{64}$/);
 });
 

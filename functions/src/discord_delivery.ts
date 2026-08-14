@@ -50,8 +50,16 @@ export function discordDeliveryId(
   itemId: string,
   ruleId: string,
   expiryDate: string,
+  recipientUid: string,
 ): string {
-  const raw = ['discord', householdId, itemId, ruleId, expiryDate].join('|');
+  const raw = [
+    'discord',
+    householdId,
+    itemId,
+    ruleId,
+    expiryDate,
+    recipientUid,
+  ].join('|');
   return createHash('sha256').update(raw).digest('hex');
 }
 
