@@ -205,4 +205,24 @@ Branch: `feature/discord-reminders`.
 - Added Discord helper unit tests and a Firestore Emulator security assertion that the integration secret remains inaccessible to clients.
 - Updated Functions test discovery to execute all compiled `*.test.js` files.
 
-No PR has been opened for this branch and no Discord-feature CI has been triggered yet. Next: add the Flutter Settings UI and callable client service, then perform one dependency-resolution/runtime checkpoint before opening a single coherent PR.
+### Flutter Discord client milestone
+
+- Added `cloud_functions 4.7.6`, matching the existing FlutterFire generation rather than forcing a broad Firebase SDK upgrade.
+- Added `DiscordReminderService` for authenticated callable status/save/test operations; the webhook secret is never read back from the backend.
+- Added household Settings UI with owner-only webhook entry/replacement, enable/disable toggle, and test-message action; members can only see integration status.
+- Webhook entry is obscured, suggestions/autocorrect are disabled, and the field is cleared after a successful save.
+- Added Discord integration-status parser tests.
+- First Ubuntu dependency checkpoint after adding `cloud_functions`: **19/19 tests passed**, **0 analyzer issues**, Linux release build succeeded.
+- `flutter pub get` added only the expected `cloud_functions`, `cloud_functions_platform_interface`, and `cloud_functions_web` packages. Flutter's incidental `analysis_options.yaml` rewrite was intentionally discarded.
+
+### Dark mode completion
+
+- Dark-mode preference and Settings toggle already existed and persisted through `SharedPreferences`, but several screens still forced light-only backgrounds/text through the inherited `AppTheme` constants.
+- Consolidated the active Material theme on the FreshFlag green palette and added complete light/dark `ThemeData` for app bars, cards, inputs, navigation, buttons, dividers, chips, and scaffolds.
+- Removed hardcoded light scaffold backgrounds from login/signup, household setup/sharing, inventory, add-item, item detail, reminders, reminder rules, Settings, and Discord Settings.
+- Inventory/item-detail/navigation accents now derive from the active color scheme rather than light-only green surfaces.
+- Added theme regression tests proving distinct light/dark brightness and surface values.
+- Combined Ubuntu validation after the dark-mode cleanup: **21/21 tests passed**, `dart analyze` reported **No issues found**, and the Linux release build succeeded.
+- The only remaining local generated changes after validation are `pubspec.lock` and `macos/Flutter/GeneratedPluginRegistrant.swift` from the intentional `cloud_functions` dependency addition.
+
+Current checkpoint: Flutter source for Discord fallback and app-wide dark mode is validated locally. Commit the two expected generated dependency files, then open one coherent PR so Backend CI can validate the TypeScript Functions and Firestore Emulator security suite without needless extra Actions runs.
