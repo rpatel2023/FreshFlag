@@ -22,11 +22,12 @@ class HouseholdService {
   Future<List<Household>> listMyHouseholds() async {
     final snapshot = await _households
         .where('memberUids', arrayContains: _uid)
-        .orderBy('updatedAt', descending: true)
         .get();
-    return snapshot.docs
+    final households = snapshot.docs
         .map((doc) => Household.fromMap(doc.id, doc.data()))
         .toList();
+    households.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return households;
   }
 
   Future<String?> getPreferredHouseholdId() async {
