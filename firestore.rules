@@ -31,6 +31,12 @@ service cloud.firestore {
         get(memberPath(householdId, request.auth.uid)).data.role == 'owner';
     }
 
+    function isHouseholdOwnerAfter(householdId) {
+      return signedIn() &&
+        getAfter(householdPath(householdId)).data.ownerUid == request.auth.uid &&
+        getAfter(memberPath(householdId, request.auth.uid)).data.role == 'owner';
+    }
+
     function validInvite(inviteId, householdId) {
       return signedIn() &&
         inviteId is string &&
@@ -49,6 +55,27 @@ service cloud.firestore {
         request.resource.data.memberUids.hasAll(resource.data.memberUids) &&
         request.resource.data.memberUids.size() == resource.data.memberUids.size() + 1 &&
         validInvite(request.resource.data.lastJoinInviteId, householdId);
+    }
+
+    function validSelfLeave(householdId) {
+      return signedIn() &&
+        request.auth.uid != resource.data.ownerUid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['memberUids', 'updatedAt']) &&
+        request.auth.uid in resource.data.memberUids &&
+        !(request.auth.uid in request.resource.data.memberUids) &&
+        resource.data.memberUids.hasAll(request.resource.data.memberUids) &&
+        request.resource.data.memberUids.size() == resource.data.memberUids.size() - 1 &&
+        !existsAfter(memberPath(householdId, request.auth.uid));
+    }
+
+    function validOwnerHouseholdUpdate(householdId) {
+      return isHouseholdOwner(householdId) &&
+        request.resource.data.ownerUid == resource.data.ownerUid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'timezone', 'memberUids', 'updatedAt']) &&
+        resource.data.memberUids.hasAll(request.resource.data.memberUids) &&
+        request.auth.uid in request.resource.data.memberUids;
     }
 
     function validReminderRule(data) {
@@ -83,10 +110,9 @@ service cloud.firestore {
         request.resource.data.memberUids.size() == 1 &&
         request.resource.data.memberUids[0] == request.auth.uid;
 
-      allow update: if (
-          isHouseholdOwner(householdId) &&
-          request.resource.data.ownerUid == resource.data.ownerUid
-        ) || validSelfJoin(householdId);
+      allow update: if validOwnerHouseholdUpdate(householdId) ||
+        validSelfJoin(householdId) ||
+        validSelfLeave(householdId);
 
       allow delete: if isHouseholdOwner(householdId);
 
@@ -107,7 +133,20 @@ service cloud.firestore {
             validInvite(request.resource.data.inviteId, householdId)
           );
 
-        allow update, delete: if isHouseholdOwner(householdId);
+        allow update: if isHouseholdOwner(householdId) &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.role == resource.data.role;
+
+        allow delete: if (
+            isHouseholdOwner(householdId) &&
+            uid != request.auth.uid &&
+            !(uid in getAfter(householdPath(householdId)).data.memberUids)
+          ) || (
+            signedIn() &&
+            uid == request.auth.uid &&
+            resource.data.role == 'member' &&
+            !(uid in getAfter(householdPath(householdId)).data.memberUids)
+          );
       }
 
       match /items/{itemId} {
@@ -129,7 +168,10 @@ service cloud.firestore {
 
       match /notificationRules/{ruleId} {
         allow read: if isHouseholdMember(householdId);
-        allow create, update: if isHouseholdOwner(householdId) &&
+        allow create: if (
+            isHouseholdOwner(householdId) || isHouseholdOwnerAfter(householdId)
+          ) && validReminderRule(request.resource.data);
+        allow update: if isHouseholdOwner(householdId) &&
           validReminderRule(request.resource.data);
         allow delete: if isHouseholdOwner(householdId);
       }
