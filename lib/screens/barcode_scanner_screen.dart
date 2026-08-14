@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../models/product_lookup_result.dart';
+import '../services/product_lookup_service.dart';
 import '../utils/app_theme.dart';
 import 'add_item_screen.dart';
 
-/// Scans a packaged-food barcode and hands the captured value to Add Item.
-///
-/// Product recognition is intentionally deferred to Phase 2. Phase 1 only
-/// guarantees that a scanned barcode is no longer discarded.
+/// Scans a packaged-food barcode, recognizes it through Open Food Facts, and
+/// hands the barcode plus any recognized display name to Add Item.
 class BarcodeScannerScreen extends StatefulWidget {
   const BarcodeScannerScreen({super.key});
 
@@ -21,6 +21,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     facing: CameraFacing.back,
     torchEnabled: false,
   );
+  final ProductLookupService _productLookupService = ProductLookupService();
 
   bool _handlingBarcode = false;
   bool _torchOn = false;
@@ -28,6 +29,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _productLookupService.close();
     super.dispose();
   }
 
@@ -80,15 +82,22 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'Place the product barcode inside the frame.',
+                      Text(
+                        _handlingBarcode
+                            ? 'Looking up product…'
+                            : 'Place the product barcode inside the frame.',
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: AppTheme.spacingS),
-                      TextButton(
-                        onPressed: _handlingBarcode ? null : _addManually,
-                        child: const Text('Add manually instead'),
-                      ),
+                      if (_handlingBarcode) ...[
+                        const SizedBox(height: AppTheme.spacingM),
+                        const CircularProgressIndicator(),
+                      ] else ...[
+                        const SizedBox(height: AppTheme.spacingS),
+                        TextButton(
+                          onPressed: _addManually,
+                          child: const Text('Add manually instead'),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -118,6 +127,17 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     setState(() => _handlingBarcode = true);
     await _controller.stop();
 
+    ProductLookupResult? product;
+    String? lookupMessage;
+    try {
+      product = await _productLookupService.lookupBarcode(scannedValue);
+      if (product == null) {
+        lookupMessage = 'Product not found. You can enter the name manually.';
+      }
+    } on ProductLookupException catch (e) {
+      lookupMessage = e.message;
+    }
+
     if (!mounted) return;
 
     final action = await showModalBottomSheet<_ScanAction>(
@@ -129,21 +149,34 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.check_circle_outline,
+              Icon(
+                product == null
+                    ? Icons.help_outline
+                    : Icons.check_circle_outline,
                 size: 52,
-                color: AppTheme.primaryGreen,
+                color: product == null
+                    ? AppTheme.warningOrange
+                    : AppTheme.primaryGreen,
               ),
               const SizedBox(height: AppTheme.spacingM),
-              const Text(
-                'Barcode scanned',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              Text(
+                product == null ? 'Barcode scanned' : product.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
               ),
+              if (product?.quantityLabel != null) ...[
+                const SizedBox(height: AppTheme.spacingXS),
+                Text(product!.quantityLabel!),
+              ],
               const SizedBox(height: AppTheme.spacingS),
               SelectableText(
                 scannedValue,
                 style: const TextStyle(fontFamily: 'monospace'),
               ),
+              if (lookupMessage != null) ...[
+                const SizedBox(height: AppTheme.spacingM),
+                Text(lookupMessage, textAlign: TextAlign.center),
+              ],
               const SizedBox(height: AppTheme.spacingL),
               Row(
                 children: [
@@ -158,7 +191,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context, _ScanAction.add),
-                      child: const Text('Add item'),
+                      child: Text(product == null ? 'Enter manually' : 'Set expiry'),
                     ),
                   ),
                 ],
@@ -174,7 +207,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     if (action == _ScanAction.add) {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => AddItemScreen(initialBarcode: scannedValue),
+          builder: (_) => AddItemScreen(
+            initialBarcode: scannedValue,
+            initialName: product?.name,
+          ),
         ),
       );
       return;
