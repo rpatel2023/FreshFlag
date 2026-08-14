@@ -5,16 +5,19 @@ import '../models/grocery_item.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 
-/// Adds one inventory item through the authoritative Firestore-backed ViewModel.
+/// Creates or edits one inventory item through the authoritative Firestore
+/// ViewModel.
 class AddItemScreen extends StatefulWidget {
   const AddItemScreen({
     super.key,
     this.initialBarcode,
     this.initialName,
+    this.existingItem,
   });
 
   final String? initialBarcode;
   final String? initialName;
+  final GroceryItem? existingItem;
 
   @override
   State<AddItemScreen> createState() => _AddItemScreenState();
@@ -27,6 +30,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _notesController = TextEditingController();
   DateTime? _expiryDate;
   String _category = 'Other';
+  String _location = 'Unspecified';
 
   static const _categories = <String>[
     'Fruits',
@@ -40,9 +44,39 @@ class _AddItemScreenState extends State<AddItemScreen> {
     'Other',
   ];
 
+  static const _locations = <String>[
+    'Unspecified',
+    'Pantry',
+    'Fridge',
+    'Freezer',
+    'Other',
+  ];
+
+  bool get _isEditing => widget.existingItem != null;
+  String? get _barcode =>
+      widget.existingItem?.barcode ?? widget.initialBarcode;
+
   @override
   void initState() {
     super.initState();
+    final existing = widget.existingItem;
+    if (existing != null) {
+      _nameController.text = existing.name;
+      _quantityController.text = existing.quantity.toString();
+      _notesController.text = existing.notes ?? '';
+      _expiryDate = existing.expiryDate;
+      _category = _categories.contains(existing.category)
+          ? existing.category
+          : 'Other';
+      final existingLocation = existing.location;
+      _location = existingLocation != null && _locations.contains(existingLocation)
+          ? existingLocation
+          : existingLocation == null
+              ? 'Unspecified'
+              : 'Other';
+      return;
+    }
+
     final initialName = widget.initialName?.trim();
     if (initialName != null && initialName.isNotEmpty) {
       _nameController.text = initialName;
@@ -63,7 +97,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.offWhite,
-      appBar: AppBar(title: const Text('Add Item')),
+      appBar: AppBar(title: Text(_isEditing ? 'Edit Item' : 'Add Item')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppTheme.spacingL),
@@ -72,28 +106,25 @@ class _AddItemScreenState extends State<AddItemScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (widget.initialBarcode != null) ...[
+                if (_barcode != null) ...[
                   Card(
                     child: ListTile(
                       leading: Icon(
-                        widget.initialName == null
+                        widget.initialName == null && !_isEditing
                             ? Icons.qr_code
                             : Icons.check_circle_outline,
-                        color: widget.initialName == null
+                        color: widget.initialName == null && !_isEditing
                             ? null
                             : AppTheme.primaryGreen,
                       ),
                       title: Text(
-                        widget.initialName == null
-                            ? 'Scanned barcode'
-                            : 'Product recognized',
+                        _isEditing
+                            ? 'Product barcode'
+                            : widget.initialName == null
+                                ? 'Scanned barcode'
+                                : 'Product recognized',
                       ),
-                      subtitle: Text(
-                        widget.initialName == null
-                            ? widget.initialBarcode!
-                            : '${widget.initialName}\n${widget.initialBarcode}',
-                      ),
-                      isThreeLine: widget.initialName != null,
+                      subtitle: Text(_barcode!),
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingM),
@@ -145,6 +176,25 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   },
                 ),
                 const SizedBox(height: AppTheme.spacingM),
+                DropdownButtonFormField<String>(
+                  initialValue: _location,
+                  decoration: const InputDecoration(
+                    labelText: 'Location (optional)',
+                    prefixIcon: Icon(Icons.kitchen_outlined),
+                  ),
+                  items: _locations
+                      .map(
+                        (location) => DropdownMenuItem(
+                          value: location,
+                          child: Text(location),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _location = value);
+                  },
+                ),
+                const SizedBox(height: AppTheme.spacingM),
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.calendar_today_outlined),
@@ -186,7 +236,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Save Item'),
+                        : Text(_isEditing ? 'Update Item' : 'Save Item'),
                   ),
                 ),
               ],
@@ -202,7 +252,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _expiryDate ?? now.add(const Duration(days: 7)),
-      firstDate: DateTime(now.year, now.month, now.day),
+      firstDate: _isEditing
+          ? DateTime(now.year - 5, 1, 1)
+          : DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 5, 12, 31),
     );
     if (picked != null && mounted) {
@@ -219,27 +271,58 @@ class _AddItemScreenState extends State<AddItemScreen> {
       return;
     }
 
-    final item = GroceryItem(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      quantity: int.parse(_quantityController.text),
-      category: _category,
-      barcode: widget.initialBarcode,
-      addedDate: DateTime.now(),
-      expiryDate: _expiryDate!,
-      notes: _notesController.text.trim().isEmpty
-          ? null
-          : _notesController.text.trim(),
-    );
+    final location = _location == 'Unspecified' ? null : _location;
+    final notes = _notesController.text.trim().isEmpty
+        ? null
+        : _notesController.text.trim();
+    final existing = widget.existingItem;
+
+    final item = existing == null
+        ? GroceryItem(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            name: _nameController.text.trim(),
+            quantity: int.parse(_quantityController.text),
+            category: _category,
+            barcode: widget.initialBarcode,
+            addedDate: DateTime.now(),
+            expiryDate: _expiryDate!,
+            location: location,
+            notes: notes,
+          )
+        : GroceryItem(
+            id: existing.id,
+            name: _nameController.text.trim(),
+            quantity: int.parse(_quantityController.text),
+            category: _category,
+            barcode: existing.barcode,
+            addedDate: existing.addedDate,
+            expiryDate: _expiryDate!,
+            location: location,
+            imageUrl: existing.imageUrl,
+            notes: notes,
+            isConsumed: existing.isConsumed,
+            householdId: existing.householdId,
+            createdByUid: existing.createdByUid,
+            updatedByUid: existing.updatedByUid,
+            updatedAt: existing.updatedAt,
+          );
 
     try {
-      await context.read<GroceryViewModel>().addItem(item);
+      if (existing == null) {
+        await context.read<GroceryViewModel>().addItem(item);
+      } else {
+        await context.read<GroceryViewModel>().updateItem(item);
+      }
       if (!mounted) return;
       Navigator.of(context).pop(item);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save item.')),
+        SnackBar(
+          content: Text(
+            _isEditing ? 'Could not update item.' : 'Could not save item.',
+          ),
+        ),
       );
     }
   }
