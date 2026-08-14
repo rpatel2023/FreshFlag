@@ -14,6 +14,7 @@ class GroceryItem {
     required DateTime expiryDate,
     this.imageUrl,
     this.notes,
+    this.location,
     this.isConsumed = false,
     this.householdId,
     this.createdByUid,
@@ -30,6 +31,7 @@ class GroceryItem {
   final DateTime expiryDate;
   final String? imageUrl;
   final String? notes;
+  final String? location;
   final bool isConsumed;
   final String? householdId;
   final String? createdByUid;
@@ -46,6 +48,7 @@ class GroceryItem {
         'expiryDate': formatDateOnly(expiryDate),
         'imageUrl': imageUrl,
         'notes': notes,
+        'location': location,
         'isConsumed': isConsumed,
         'householdId': householdId,
         'createdByUid': createdByUid,
@@ -63,6 +66,7 @@ class GroceryItem {
         expiryDate: parseDateOnly(map['expiryDate'] as String),
         imageUrl: map['imageUrl'] as String?,
         notes: map['notes'] as String?,
+        location: map['location'] as String?,
         isConsumed: map['isConsumed'] as bool? ?? false,
         householdId: map['householdId'] as String?,
         createdByUid: map['createdByUid'] as String?,
@@ -85,6 +89,7 @@ class GroceryItem {
     DateTime? expiryDate,
     String? imageUrl,
     String? notes,
+    String? location,
     bool? isConsumed,
     String? householdId,
     String? createdByUid,
@@ -100,6 +105,7 @@ class GroceryItem {
         expiryDate: expiryDate ?? this.expiryDate,
         imageUrl: imageUrl ?? this.imageUrl,
         notes: notes ?? this.notes,
+        location: location ?? this.location,
         isConsumed: isConsumed ?? this.isConsumed,
         householdId: householdId ?? this.householdId,
         createdByUid: createdByUid ?? this.createdByUid,
@@ -141,6 +147,7 @@ class GroceryItem {
           other.expiryDate == expiryDate &&
           other.imageUrl == imageUrl &&
           other.notes == notes &&
+          other.location == location &&
           other.isConsumed == isConsumed &&
           other.householdId == householdId &&
           other.createdByUid == createdByUid &&
@@ -149,8 +156,21 @@ class GroceryItem {
 
   @override
   int get hashCode => Object.hash(
-        id, name, quantity, category, barcode, addedDate, expiryDate, imageUrl,
-        notes, isConsumed, householdId, createdByUid, updatedByUid, updatedAt,
+        id,
+        name,
+        quantity,
+        category,
+        barcode,
+        addedDate,
+        expiryDate,
+        imageUrl,
+        notes,
+        location,
+        isConsumed,
+        householdId,
+        createdByUid,
+        updatedByUid,
+        updatedAt,
       );
 }
 

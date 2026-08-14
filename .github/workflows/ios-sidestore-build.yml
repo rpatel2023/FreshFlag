@@ -1,0 +1,80 @@
+name: Build SideStore IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Verify lockfile is reproducible
+        run: git diff --exit-code -- pubspec.lock
+
+      - name: Test
+        run: flutter test --no-pub
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign --no-pub
+
+      - name: Assemble SideStore IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="build/ios/iphoneos/Runner.app"
+          OUT="build/sidestore"
+          BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+
+          test "$BUNDLE_ID" = "com.rpatel2023.freshflag"
+          test -f ios/Runner/GoogleService-Info.plist
+
+          # The legacy Xcode project does not yet copy this file as a target
+          # resource. FreshFlag initializes Firebase with explicit Dart options,
+          # but include the production plist in the final bundle as well so the
+          # native Firebase plugins have the canonical iOS configuration.
+          cp ios/Runner/GoogleService-Info.plist "$APP/GoogleService-Info.plist"
+
+          rm -rf "$OUT"
+          mkdir -p "$OUT/Payload"
+          cp -R "$APP" "$OUT/Payload/FreshFlag.app"
+
+          (
+            cd "$OUT"
+            zip -qry FreshFlag-unsigned.ipa Payload
+          )
+
+          test -s "$OUT/FreshFlag-unsigned.ipa"
+          unzip -l "$OUT/FreshFlag-unsigned.ipa" | grep -q 'Payload/FreshFlag.app/Info.plist'
+          unzip -l "$OUT/FreshFlag-unsigned.ipa" | grep -q 'Payload/FreshFlag.app/GoogleService-Info.plist'
+
+      - name: Upload SideStore IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreshFlag-SideStore-IPA
+          path: build/sidestore/FreshFlag-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
