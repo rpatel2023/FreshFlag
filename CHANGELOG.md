@@ -313,3 +313,17 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
   - `flutter test`: **21/21 passed**.
 - Flutter's incidental `analysis_options.yaml` rewrite was discarded; the working tree returned clean.
 - Next production deployment step: deploy the tested Firestore security rules before deploying Cloud Functions.
+
+### Cloud Functions dependency audit — REMEDIATED
+
+- Installed the Functions dependency tree under Node 22 and built the TypeScript backend successfully.
+- `npm audit --omit=dev` initially reported 7 moderate vulnerabilities through transitive `uuid@9.0.1` dependencies under Google/Firebase packages.
+- Did not use `npm audit fix --force` because it proposed a breaking downgrade of `firebase-admin`.
+- Added scoped npm overrides so `gaxios` and `teeny-request` resolve `uuid` to `^11.1.1`.
+- Reinstalled dependencies from a fresh lockfile.
+- Production dependency audit now reports **0 vulnerabilities**.
+- Functions validation after the override:
+  - backend tests: **9/9 passed**
+  - TypeScript build: **success**
+- Generated `functions/lib/` and `functions/node_modules/` were removed and are not committed.
+- `functions/package-lock.json` is now committed for reproducible backend dependency resolution.
