@@ -10,17 +10,73 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
-    // Phase 1: a signed-in user can only access their own profile namespace.
+    function householdPath(householdId) {
+      return /databases/$(database)/documents/households/$(householdId);
+    }
+
+    function memberPath(householdId, uid) {
+      return /databases/$(database)/documents/households/$(householdId)/members/$(uid);
+    }
+
+    function isHouseholdMember(householdId) {
+      return signedIn() && exists(memberPath(householdId, request.auth.uid));
+    }
+
+    function isHouseholdOwner(householdId) {
+      return isHouseholdMember(householdId) &&
+        get(memberPath(householdId, request.auth.uid)).data.role == 'owner';
+    }
+
     match /users/{uid} {
       allow read, create, update, delete: if isSelf(uid);
+    }
 
-      match /groceryItems/{itemId} {
-        allow read, create, update, delete: if isSelf(uid);
+    match /households/{householdId} {
+      // Collection queries must include memberUids arrayContains the caller UID.
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
+      allow create: if signedIn() &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.memberUids.size() == 1 &&
+        request.resource.data.memberUids[0] == request.auth.uid;
+
+      allow update: if isHouseholdOwner(householdId) &&
+        request.resource.data.ownerUid == resource.data.ownerUid;
+
+      allow delete: if isHouseholdOwner(householdId);
+
+      match /members/{uid} {
+        allow read: if isHouseholdMember(householdId);
+
+        // Household creation writes the owner membership in the same batch.
+        allow create: if signedIn() && uid == request.auth.uid &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.role == 'owner' &&
+          getAfter(householdPath(householdId)).data.ownerUid == request.auth.uid;
+
+        // Invite/join mutations are introduced in Phase 4. Until then only an
+        // owner may alter an existing member record.
+        allow update, delete: if isHouseholdOwner(householdId);
+      }
+
+      match /items/{itemId} {
+        allow read: if isHouseholdMember(householdId);
+
+        allow create: if isHouseholdMember(householdId) &&
+          request.resource.data.householdId == householdId &&
+          request.resource.data.createdByUid == request.auth.uid &&
+          request.resource.data.updatedByUid == request.auth.uid;
+
+        allow update: if isHouseholdMember(householdId) &&
+          request.resource.data.householdId == householdId &&
+          request.resource.data.householdId == resource.data.householdId &&
+          request.resource.data.createdByUid == resource.data.createdByUid &&
+          request.resource.data.updatedByUid == request.auth.uid;
+
+        allow delete: if isHouseholdMember(householdId);
       }
     }
 
-    // Everything else is denied until an explicit FreshFlag data model and
-    // corresponding emulator tests are introduced in later phases.
     match /{document=**} {
       allow read, write: if false;
     }
