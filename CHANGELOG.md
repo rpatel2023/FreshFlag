@@ -181,7 +181,7 @@ Branch: `phase8-testflight-prep`.
 
 Result: Phase 8 source prep is integrated. Remaining external work is FreshFlag Firebase project configuration/deployment and iOS build/signing/sideload validation.
 
-## 2026-08-14 — Discord household reminder channel — IN PROGRESS
+## 2026-08-14 — Discord household reminder channel + dark mode — VALIDATED SOURCE
 
 Branch: `feature/discord-reminders`.
 
@@ -223,6 +223,15 @@ Branch: `feature/discord-reminders`.
 - Inventory/item-detail/navigation accents now derive from the active color scheme rather than light-only green surfaces.
 - Added theme regression tests proving distinct light/dark brightness and surface values.
 - Combined Ubuntu validation after the dark-mode cleanup: **21/21 tests passed**, `dart analyze` reported **No issues found**, and the Linux release build succeeded.
-- The only remaining local generated changes after validation are `pubspec.lock` and `macos/Flutter/GeneratedPluginRegistrant.swift` from the intentional `cloud_functions` dependency addition.
+- Generated `pubspec.lock` and macOS plugin registrant were committed as `84bc086` after rebasing the local metadata commit onto the latest branch.
 
-Current checkpoint: Flutter source for Discord fallback and app-wide dark mode is validated locally. Commit the two expected generated dependency files, then open one coherent PR so Backend CI can validate the TypeScript Functions and Firestore Emulator security suite without needless extra Actions runs.
+### PR #9 validation and integration
+
+- PR #9 (`Add Discord reminder fallback and complete dark mode`) opened from `feature/discord-reminders` to `main`.
+- Initial Backend CI exposed one TypeScript compile error: the shared `ReminderItemData.location` is optional while `DiscordReminderPayload.location` incorrectly required explicit `string | null`.
+- Fixed the type contract so Discord reminder payloads accept omitted/null locations (`c83fd342`) and added a regression test proving location-less reminders omit the Location field (`09e295a`).
+- Final Backend CI run `31828335280`: **success** — Functions TypeScript build/tests and Firestore Emulator authorization tests both passed.
+- Final Flutter CI run `31828335313`: **success** — dependency resolution and lockfile reproducibility passed, **21 tests** passed, analyzer passed, and Linux release build succeeded.
+- PR #9 merged to `main` as `82fc45c8d11d167a82cc5304433605928e1e8550`.
+
+Result: Discord reminder fallback and app-wide dark mode are integrated and source-validated. Real Discord delivery still requires the FreshFlag Firebase backend to be deployed and a household Discord webhook to be configured; iPhone/SideStore validation remains part of the external deployment phase.
