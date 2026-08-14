@@ -51,3 +51,18 @@ test('Discord payload disables mentions and includes reminder context', () => {
   assert.equal(embeds[0].title, '@everyone Milk expires soon');
   assert.equal(embeds[0].description, 'Use @everyone Milk before it expires.');
 });
+
+test('Discord payload accepts reminders without a location', () => {
+  const body = buildDiscordWebhookBody({
+    householdName: 'Home',
+    itemName: 'Bread',
+    expiryDate: '2026-08-20',
+    title: 'Bread expires soon',
+    body: 'Use Bread before it expires.',
+    quantity: 1,
+  });
+
+  const embeds = body.embeds as Array<Record<string, unknown>>;
+  const fields = embeds[0].fields as Array<Record<string, unknown>>;
+  assert.equal(fields.some((field) => field.name === 'Location'), false);
+});
