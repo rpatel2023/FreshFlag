@@ -12,7 +12,7 @@ export interface DiscordReminderPayload {
   title: string;
   body: string;
   quantity: number;
-  location: string | null;
+  location?: string | null;
 }
 
 const ALLOWED_HOSTS = new Set(['discord.com', 'discordapp.com']);
