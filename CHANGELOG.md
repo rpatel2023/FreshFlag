@@ -364,3 +364,22 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
 - PR #11 Flutter CI run `31841194028`: **success**.
 - PR #11 merged to `main` as `e77f40669dd948bf4e539f8ec9938e7fe4aded18`.
 - Next external gate: run the manual macOS SideStore IPA workflow and validate the resulting unsigned IPA.
+
+### SideStore iOS build attempt #1 — FAILED / COMPATIBILITY FIX APPLIED
+
+- Manual SideStore workflow run `31842096955` executed against `main`.
+- Flutter validation succeeded before native compilation:
+  - **21/21 tests passed**
+  - `dart analyze`: **No issues found**
+- GitHub runner used macOS 26 ARM64 with Xcode 26.6.
+- Native iOS build failed with:
+  - `unsupported option '-G' for target 'arm64-apple-ios15.0'`
+- Failure matches the known BoringSSL-GRPC/CocoaPods incompatibility affecting older Firebase iOS dependency chains with newer Xcode clang versions.
+- Repository was temporarily changed from private to **public** so standard GitHub-hosted Actions builds do not consume private-repository Actions allowance.
+- Added narrow compatibility fix in PR #12:
+  - SideStore workflow now uses `macos-14`
+  - explicitly selects Xcode 15.4
+  - retains the currently tested Flutter/FlutterFire dependency set
+  - remains `workflow_dispatch` only
+- PR #12 merged to `main` as `abbba4d303e70a25a60d8e189f076cdfbe910f4f`.
+- Next validation gate: rerun the manual SideStore IPA workflow on Xcode 15.4.
