@@ -5,9 +5,12 @@ import 'package:flutter/foundation.dart';
 import '../models/grocery_item.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/firebase_firestore_service.dart';
-import '../services/notification_service.dart';
 
 /// Authoritative real-time inventory state for the selected household.
+///
+/// Expiry reminder delivery is backend-driven. This ViewModel never schedules
+/// device-local expiry notifications, which avoids duplicate or rule-divergent
+/// reminders across household members.
 class GroceryViewModel extends ChangeNotifier {
   List<GroceryItem> _items = [];
   bool _isLoading = false;
@@ -18,7 +21,6 @@ class GroceryViewModel extends ChangeNotifier {
 
   final FirebaseFirestoreService _firestore = FirebaseFirestoreService.instance;
   final FirebaseAuthService _auth = FirebaseAuthService.instance;
-  final NotificationService _notifications = NotificationService.instance;
 
   List<GroceryItem> get items => List.unmodifiable(_items);
   bool get isLoading => _isLoading;
@@ -76,19 +78,17 @@ class GroceryViewModel extends ChangeNotifier {
   Future<void> addItem(GroceryItem item) async {
     final householdId = _requireContext('add inventory');
     final uid = _auth.currentUserId!;
-    final now = DateTime.now().toUtc();
     final persisted = item.copyWith(
       householdId: householdId,
       createdByUid: item.createdByUid ?? uid,
       updatedByUid: uid,
-      updatedAt: now,
+      updatedAt: DateTime.now().toUtc(),
     );
 
     _setUploading(true);
     _clearError();
     try {
       await _firestore.addGroceryItem(persisted);
-      await _notifications.scheduleExpiryNotification(persisted);
     } catch (e) {
       _setError('Failed to save item: $e');
       rethrow;
@@ -123,7 +123,6 @@ class GroceryViewModel extends ChangeNotifier {
     _clearError();
     try {
       await _firestore.deleteGroceryItem(itemId);
-      await _notifications.cancelExpiryNotifications(itemId);
     } catch (e) {
       _setError('Failed to delete item: $e');
       rethrow;
