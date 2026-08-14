@@ -251,3 +251,42 @@ However, FreshFlag must not layer household features onto the current demo behav
 
 - Actual iOS build/signing/TestFlight verification remains deferred until a macOS/Xcode environment is available.
 - Android compile remains optional/deferred because it is not the primary MVP platform.
+
+---
+
+## 2026-08-14 — Phase 1 stabilization slice 1 validated
+
+Branch: `phase1-stabilization`
+
+### Implemented
+
+- Added first real grocery-item tests in place of the empty upstream test file.
+- Removed automatic anonymous sign-in from inventory loading.
+- Removed silent dummy grocery fallback when Firestore loading fails.
+- Consolidated duplicate `GroceryViewModel` provider creation so the app has one coherent inventory state instance.
+- Changed Firestore writes to use the application item ID as the Firestore document ID, removing the previous local-ID/document-ID mismatch.
+- Updated grocery-item serialization so fields such as notes and consumed state are preserved consistently.
+- Added a transitional remote-first persistence bridge so Add Item can no longer report success after only writing to local Hive while the visible inventory reads from Firestore.
+
+### Ubuntu validation
+
+Validated on Flutter 3.47.0 / Dart 3.13.0:
+
+- `flutter test --no-pub`: **3 tests passed**.
+- `dart analyze`: **27 issues**, down from the Phase 0 baseline of 30. No analyzer-fatal errors.
+- `flutter build linux --no-pub`: **success**.
+- Git working tree after validation: **clean**.
+
+Validated branch HEAD before this changelog entry:
+
+`6ff74a9047ca5fdde3eaa6fe2e59da44622bb69f` — `test: add grocery item persistence baseline`
+
+### Result
+
+Slice 1 is accepted as a stable Phase 1 milestone. The application now has a testable, authenticated, Firestore-first single-user inventory path instead of silently masking persistence failures with demo behavior.
+
+### Next slice
+
+- Refactor Add Item to call `GroceryViewModel` directly and remove its remaining direct local-database persistence path.
+- Remove stale/duplicate authentication code that generates analyzer warnings.
+- Continue reducing warning-level analyzer findings before changing expiry semantics.
