@@ -57,7 +57,7 @@ Validated on Ubuntu at code HEAD `6ff74a9047ca5fdde3eaa6fe2e59da44622bb69f`:
 - `flutter build linux --no-pub`: **success**.
 - Working tree: clean.
 
-### Slice 2 — single write path + barcode handoff — AWAITING RUNTIME VALIDATION
+### Slice 2 — single write path + barcode handoff — AWAITING RUNTIME RE-VALIDATION
 
 Implemented after Slice 1 validation:
 
@@ -70,10 +70,21 @@ Implemented after Slice 1 validation:
 - Removed duplicate/unreachable Firebase Auth exception cases.
 - `hasValidToken()` now reflects the actual Firebase authenticated session rather than treating a cached SharedPreferences token as proof of a valid session.
 
-Relevant commits:
+Initial Ubuntu validation at checkpoint `64b0ef0bc0d0abd7a8260674c3617e70f172bc62` found:
 
-- `5eb00b7e6e76df0af4005a167e80428e07b9ee1b` — tighten authenticated session handling.
-- `3207de1ffc4fdf4db68384a237adff9189c51c52` — Add Item uses inventory ViewModel.
-- `6d46b00ec86fee005cfdf3a17827d8922ccb0391` — preserve scanned barcode through Add Item flow.
+- `flutter test --no-pub`: **3 tests passed**.
+- `dart analyze`: **21 issues**, including **2 compile errors**.
+- `flutter build linux --no-pub`: **failed** because of the same 2 compile errors.
+- Working tree: clean.
 
-Next required action is a runtime compile/test/analyzer pass on Ubuntu. No further source changes should be layered on this slice until that validation succeeds.
+Compile blockers found and fixed:
+
+1. `BarcodeScannerScreen` held the scanned barcode in a nullable local variable captured by a bottom-sheet closure; Dart therefore would not promote it to non-null. The value is now copied into a final non-null `scannedValue` after the null guard and that value is used throughout the handoff.
+2. `AuthViewModel` still exposed a stale `signInAnonymously()` method after anonymous auth was removed from `FirebaseAuthService`. The stale ViewModel method has now been removed.
+
+Fix commits:
+
+- `e6f299d2b3c7b05982f5420e49f8bba517f8bff5` — preserve non-null scanned barcode value.
+- `439cca30501524546069221dd6cc551bb346bdd4` — remove anonymous auth from ViewModel.
+
+Current constraint: the corrected Slice 2 must be compiled/tested on Ubuntu before deeper persistence/model changes are layered on top.
