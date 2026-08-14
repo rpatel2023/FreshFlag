@@ -68,8 +68,10 @@ service cloud.firestore {
       allow read, create, update, delete: if isSelf(uid);
 
       match /devices/{deviceId} {
-        allow read, create, update, delete: if isSelf(uid) &&
+        allow read: if isSelf(uid);
+        allow create, update: if isSelf(uid) &&
           request.resource.data.deviceId == deviceId;
+        allow delete: if isSelf(uid);
       }
     }
 
