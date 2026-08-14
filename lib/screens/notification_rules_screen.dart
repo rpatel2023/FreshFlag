@@ -102,7 +102,8 @@ class NotificationRulesScreen extends StatelessWidget {
                       ),
                     ),
                     if (household.isOwner)
-                      ButtonBar(
+                      OverflowBar(
+                        alignment: MainAxisAlignment.end,
                         children: [
                           TextButton.icon(
                             onPressed: () => _showRuleEditor(

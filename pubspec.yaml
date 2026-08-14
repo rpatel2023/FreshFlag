@@ -1,7 +1,7 @@
 name: freshflag
 description: Shared food-expiry tracking with barcode scanning and reminders.
 publish_to: 'none'
-version: 1.0.0+1
+version: 0.1.0+1
 
 environment:
   sdk: ^3.8.1
@@ -13,36 +13,15 @@ dependencies:
   firebase_messaging: ^14.7.10
   flutter:
     sdk: flutter
-  flutter_local_notifications: ^17.2.3
   http: ^1.5.0
   mobile_scanner: ^5.2.3
   provider: ^6.1.2
   shared_preferences: ^2.2.2
-  timezone: ^0.9.4
 
 dev_dependencies:
-  flutter_launcher_icons: ^0.14.4
   flutter_lints: ^5.0.0
   flutter_test:
     sdk: flutter
-
-flutter_launcher_icons:
-  android: "launcher_icon"
-  ios: true
-  image_path: "assets/images/logos/stayfresh.png"
-  min_sdk_android: 21
-  web:
-    generate: true
-    image_path: "assets/images/logos/stayfresh.png"
-    background_color: "#ffffff"
-    theme_color: "#4CAF50"
-  windows:
-    generate: true
-    image_path: "assets/images/logos/stayfresh.png"
-    icon_size: 48
-  macos:
-    generate: true
-    image_path: "assets/images/logos/stayfresh.png"
 
 flutter:
   uses-material-design: true

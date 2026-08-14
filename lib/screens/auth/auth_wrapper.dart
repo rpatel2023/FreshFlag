@@ -48,7 +48,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             if (!mounted) return;
             await FCMService.instance.syncRegistrationForCurrentUser();
             if (!mounted) return;
-            await context.read<HouseholdViewModel>().initializeForUser(user.uid);
+            await household.initializeForUser(user.uid);
           });
         }
 

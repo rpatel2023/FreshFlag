@@ -1,101 +1,97 @@
 # FreshFlag
 
-FreshFlag is a Flutter food-expiry tracker being built for iPhone/TestFlight first. The product goal is a shared household inventory where people can scan packaged-food barcodes, set expiry dates, and receive configurable reminders before food expires.
+FreshFlag is a Flutter food-expiry tracker built around one household workflow:
 
-## Product loop
+`SCAN → SET EXPIRY → SHARE WITH HOUSEHOLD → GET REMINDED → CONSUME / REMOVE`
 
-`SCAN → SET EXPIRY → SHARE WITH HOUSEHOLD → GET REMINDED → CONSUME/REMOVE`
+The primary release target is iPhone through TestFlight.
 
-The current branch is still in stabilization. Household collaboration and backend reminder scheduling are intentionally not layered onto an untrusted single-user foundation.
+## Current product state
 
-## Current implementation
+The source implementation now includes:
 
-On `phase1-stabilization`, the app currently has:
+- Firebase email/password authentication;
+- household-owned Firestore inventory with owner/member roles;
+- real-time household inventory updates;
+- shareable household invite codes with expiry/revocation;
+- barcode scanning with Open Food Facts recognition and manual fallback;
+- calendar-date expiry values stored as `YYYY-MM-DD`;
+- configurable household reminder rules;
+- backend scheduled reminder evaluation in the household IANA timezone;
+- deterministic delivery idempotency;
+- per-install FCM device registration, opt-out, invalid-token cleanup, and stale-device pruning;
+- notification taps that switch to the correct household and open the exact inventory item;
+- Firestore Emulator authorization tests;
+- PR-only, path-filtered Flutter and backend CI.
 
-- Firebase email/password authentication.
-- Firestore-backed single-user inventory under `users/{uid}/groceryItems/{itemId}`.
-- Manual item entry.
-- Camera barcode capture using `mobile_scanner`.
-- Barcode value handoff into the saved inventory item.
-- Date-only expiry semantics persisted as `YYYY-MM-DD`.
-- Backward-compatible parsing of inherited full ISO expiry timestamps.
-- Inventory/reminder screens driven from one `GroceryViewModel` rather than a second local grocery database.
-- Local reminder scheduling as a temporary Phase 1 capability.
-- FCM permission/token plumbing, but no client-side FCM sending.
-- Device-local UI preferences using `SharedPreferences` only.
-- Phase 1 Firestore ownership rules in `firestore.rules`.
+Phases 1–7 are source-complete and validated. Phase 8 is active: FreshFlag-owned Firebase/Apple configuration, iOS project migration/signing, physical-device testing, and TestFlight release.
 
-## Deliberately not implemented yet
+## Architecture
 
-- Open Food Facts product recognition from barcode — Phase 2.
-- Shared household ownership/realtime collaboration — Phase 3.
-- Household invites — Phase 4.
-- Configurable household notification rules — Phase 5.
-- Backend push worker/device-token persistence — Phase 6.
-- Notification deep linking — Phase 7.
-- Final iPhone/TestFlight configuration and polish — Phase 8.
-
-## Architecture direction
-
-FreshFlag uses Firebase as the backend direction:
+Firebase is the only application backend:
 
 - Firebase Authentication
 - Cloud Firestore
 - Firebase Cloud Messaging
-- Cloud Functions / scheduled backend work in later phases
-- Firebase Emulator Suite for security/rule testing in later phases
+- Cloud Functions v2 / Cloud Scheduler
+- Firebase Emulator Suite
 
-The inherited Supabase storage/token path has been removed from the active architecture.
-
-The planned household data model is:
+Core Firestore shape:
 
 ```text
 users/{uid}
   devices/{deviceId}
+
 households/{householdId}
   members/{uid}
   items/{itemId}
   notificationRules/{ruleId}
-invites/{inviteId}
-productCache/{normalizedBarcode}
+
+invites/{inviteCode}
 notificationDeliveries/{deliveryId}
 ```
 
-Phase 1 intentionally still uses the transitional per-user grocery collection until the household migration.
+See `ARCHITECTURE.md` for implementation details and `PROJECT_CONTEXT.md` for product constraints.
 
-## Expiry semantics
+## Firebase configuration status
 
-Expiry is a calendar date, not a timestamp. New data is persisted as:
+The imported StayFresh Firebase project has been deliberately disconnected. `lib/firebase_options.dart` is currently a safe stub and the inherited Android `google-services.json` has been removed.
 
-```text
-YYYY-MM-DD
-```
+Before a device/TestFlight build, run FlutterFire configuration against a **FreshFlag-owned Firebase project**. Do not restore or reuse the imported `stayfresh-36edf` configuration.
 
-This avoids time-of-day/timezone changes altering the expiry day. Legacy StayFresh timestamp records are parsed and normalized on read.
+## Development validation
 
-## Development
-
-Current validated environment:
+Validated baseline environment:
 
 - Ubuntu 24.04
 - Flutter 3.47.0 stable
 - Dart 3.13.0
 
-Typical validation commands:
+Typical client validation:
 
 ```bash
 flutter pub get
 flutter test
 dart analyze
-flutter build linux
+flutter build linux --release
 ```
 
-The iOS project can be statically maintained from Linux, but an actual iOS build, signing, and TestFlight verification require macOS/Xcode.
+Backend/security validation is automated in `.github/workflows/backend-ci.yml` when relevant PR paths change.
 
-## Project history
+The iOS project can be prepared statically from Linux, but actual Swift Package Manager migration verification, signing, archive creation, APNs validation, and TestFlight upload require macOS/Xcode.
 
-FreshFlag was bootstrapped from the MIT-licensed StayFresh repository while preserving its Git history. FreshFlag is maintained as an independent repository rather than a GitHub fork. See `UPSTREAM.md` and `docs/BASELINE_AUDIT.md` for provenance and audit findings.
+## Phase 8 / TestFlight
 
-## Important project log
+Use `docs/testflight.md` as the release runbook. The beta is not considered complete until two real iPhones can join one household, share an item in real time, receive one backend reminder each, open the exact item from the notification, and synchronize consume/remove state.
 
-`CHANGELOG.md` is the persistent engineering log. It records each major implementation, validation result, blocker, and architectural decision so project work can resume without repeating prior investigation.
+## Provenance
+
+FreshFlag began from the MIT-licensed StayFresh repository while preserving Git history and is maintained as an independent repository. See:
+
+- `UPSTREAM.md`
+- `THIRD_PARTY_NOTICES.md`
+- `docs/BASELINE_AUDIT.md`
+
+## Engineering log
+
+`CHANGELOG.md` is the persistent progress log and must be updated after every meaningful implementation, validation, architectural decision, migration, or blocker.
