@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stayfresh/models/grocery_item.dart';
+import 'package:freshflag/models/grocery_item.dart';
 
 void main() {
   group('GroceryItem persistence', () {
