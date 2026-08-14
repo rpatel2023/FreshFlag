@@ -20,7 +20,6 @@ class NotificationRulesScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Expiry reminders')),
       floatingActionButton: household.isOwner
           ? FloatingActionButton.extended(
