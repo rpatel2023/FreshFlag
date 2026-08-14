@@ -2,11 +2,15 @@ class ProductLookupResult {
   const ProductLookupResult({
     required this.barcode,
     required this.name,
+    this.brand,
+    this.imageUrl,
     this.quantityLabel,
   });
 
   final String barcode;
   final String name;
+  final String? brand;
+  final String? imageUrl;
   final String? quantityLabel;
 
   factory ProductLookupResult.fromOpenFoodFactsProduct(
@@ -26,7 +30,31 @@ class ProductLookupResult {
     return ProductLookupResult(
       barcode: barcode,
       name: productName,
+      brand: _firstNonEmptyString([product['brands']]),
+      imageUrl: _firstNonEmptyString([
+        product['image_front_small_url'],
+        product['image_front_url'],
+        product['image_url'],
+      ]),
       quantityLabel: _firstNonEmptyString([product['quantity']]),
+    );
+  }
+
+  factory ProductLookupResult.fromFreshFlagProduct(
+    Map<String, dynamic> product,
+  ) {
+    final barcode = _firstNonEmptyString([product['barcode']]);
+    final name = _firstNonEmptyString([product['name']]);
+    if (barcode == null || name == null) {
+      throw const FormatException('Cached product is missing required fields.');
+    }
+
+    return ProductLookupResult(
+      barcode: barcode,
+      name: name,
+      brand: _firstNonEmptyString([product['brand']]),
+      imageUrl: _firstNonEmptyString([product['imageUrl']]),
+      quantityLabel: _firstNonEmptyString([product['quantityLabel']]),
     );
   }
 
