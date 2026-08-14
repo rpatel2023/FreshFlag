@@ -18,7 +18,6 @@ class RemindersScreen extends StatelessWidget {
         .toList();
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Reminders')),
       body: RefreshIndicator(
         onRefresh: inventory.loadItems,
