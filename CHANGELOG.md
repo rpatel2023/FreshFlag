@@ -287,3 +287,17 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
 - Configured user-owned npm global prefix at `~/.local/npm`, added its `bin` directory to `PATH`, and installed Firebase CLI successfully without `sudo`.
 - Firebase CLI version verified as `15.27.0`.
 - Next: authenticate the CLI with `firebase login`, confirm the `freshflag` project is visible, then install/verify FlutterFire CLI.
+
+### Firebase CLI, FlutterFire, and iOS app registration
+
+- Firebase CLI authenticated successfully with the Google account that owns the FreshFlag project.
+- `firebase projects:list` still returns an empty list even though the request succeeds with HTTP 200; direct project operations against `freshflag` work correctly.
+- Confirmed Google Cloud project has `firebase=enabled` and the Firebase Management API enabled.
+- Bound the repository to the production Firebase project with `firebase use freshflag`.
+- Installed FlutterFire CLI `1.4.1` and added `$HOME/.pub-cache/bin` to the shell `PATH`.
+- Synced the Ubuntu checkout to clean `main` at `e803af6`.
+- `flutterfire configure --project=freshflag` cannot proceed because FlutterFire depends on the empty Firebase project-list result.
+- Bypassed that discovery issue using the Firebase CLI directly.
+- Registered Firebase iOS app `FreshFlag` with bundle ID `com.rpatel2023.freshflag`.
+- Firebase iOS App ID: `1:765920629957:ios:7e3a403712197ed143ccac`.
+- Next: retrieve the iOS Firebase SDK configuration directly with `firebase apps:sdkconfig`.
