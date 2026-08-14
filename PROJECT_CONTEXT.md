@@ -1,0 +1,501 @@
+# FreshFlag — Project Context & Product Source of Truth
+
+> Primary target: iPhone / TestFlight  
+> Client: Flutter  
+> Backend: Firebase  
+> Product: shared household food-expiry tracking  
+> Implementation history: `CHANGELOG.md`  
+> Implemented architecture: `ARCHITECTURE.md`  
+> TestFlight procedure: `docs/testflight.md`
+
+This document defines what FreshFlag is and the constraints future implementation must preserve. When source code and this document disagree about product intent, treat this document as authoritative unless a deliberate decision is recorded in `CHANGELOG.md` and reflected here.
+
+## Product objective
+
+FreshFlag helps a household track food expiry with the smallest useful loop:
+
+```text
+SCAN
+  -> recognize product
+  -> SET EXPIRY
+  -> SHARE WITH HOUSEHOLD
+  -> GET REMINDED
+  -> CONSUME / REMOVE
+```
+
+Everything else is secondary until that loop is reliable across multiple real iPhones.
+
+FreshFlag is not an ERP, recipe platform, meal planner, nutrition tracker, budgeting system, grocery-store integration, or general household-management suite for the MVP.
+
+## MVP definition of done
+
+The MVP is complete only when this scenario works reliably:
+
+1. User A installs FreshFlag through TestFlight.
+2. User A creates/signs into an account.
+3. User A creates a household.
+4. User A shares a household invite.
+5. User B installs/signs in and joins that household.
+6. User A scans a packaged-food barcode.
+7. Product details are populated when Open Food Facts knows the barcode.
+8. User A enters an expiry date.
+9. The item appears on both phones without manual refresh.
+10. The household has a custom reminder rule.
+11. The backend evaluates the rule in the household timezone.
+12. Both eligible users receive exactly one intended push notification.
+13. Tapping the alert opens the correct household item.
+14. Either member marks the item consumed/removed.
+15. Both phones reflect the updated shared state.
+
+Source CI alone does not satisfy this definition; the final scenario must pass on physical devices.
+
+## Accounts
+
+MVP authentication:
+
+- Firebase Authentication;
+- email/password;
+- persistent signed-in session;
+- sign out;
+- one or more registered devices per user.
+
+Additional providers such as Sign in with Apple or Google are post-MVP unless App Store requirements force a change.
+
+## Household ownership invariant
+
+Inventory belongs to a household, never directly to an individual user.
+
+Incorrect:
+
+```text
+users/{uid}/items
+```
+
+Correct:
+
+```text
+households/{householdId}/items
+```
+
+Items still carry creator/updater audit fields.
+
+MVP roles:
+
+- `owner`: household administration, invites, notification-rule management;
+- `member`: inventory management and rule viewing.
+
+The model may support multiple households even if the UX emphasizes one active household.
+
+## Household capabilities
+
+Users must be able to:
+
+- create and name a household;
+- join through an invite;
+- switch accessible households;
+- see shared inventory in real time.
+
+Owners must be able to create/revoke invitations and manage notification rules.
+
+Member removal, leaving a household, ownership transfer, and richer household administration are valid follow-up work if not complete in the first TestFlight build, but the data/security model must not prevent them.
+
+## Invitations
+
+MVP invitations are shareable codes/links rather than transactional email.
+
+Properties:
+
+- non-enumerable secret/code;
+- expiration;
+- revocation;
+- acceptance only by a signed-in user;
+- acceptance must validate the real invite rather than trusting a client-provided household ID;
+- the joining user may create only their own membership and may never self-promote to owner.
+
+An iOS share sheet is preferred when link sharing is added.
+
+## Barcode scanning
+
+FreshFlag should support common retail barcode formats provided by the chosen scanner, including UPC/EAN families.
+
+Barcode scanning must never be mandatory. Manual item entry must always remain available.
+
+Expected flow:
+
+```text
+scan barcode
+  -> normalize barcode
+  -> product lookup
+  -> recognized: prefill Add Item
+  -> unknown/error: manual Add Item with barcode retained
+```
+
+A barcode identifies product metadata, not a unique physical inventory instance. Two packages with the same barcode but different expiry dates are separate inventory items.
+
+## Product lookup
+
+Primary metadata source: Open Food Facts.
+
+Only fetch/store fields useful to expiry tracking, initially:
+
+- barcode;
+- product name;
+- brand where useful;
+- image URL where useful;
+- category where useful.
+
+Do not turn FreshFlag into a nutrition database merely because the external API exposes nutritional fields.
+
+Lookup/network failure must never block adding an item.
+
+A future `productCache/{normalizedBarcode}` can reduce duplicate external requests. Inventory records should copy the display fields they need so later public-database changes do not unexpectedly rewrite household history or user overrides.
+
+## Inventory item model
+
+Required conceptual fields:
+
+- `id`;
+- `householdId`;
+- `name`;
+- `expiryDate`;
+- `createdAt` / creator;
+- `updatedAt` / updater.
+
+Useful optional fields:
+
+- barcode;
+- brand;
+- image URL;
+- quantity/unit;
+- location;
+- purchase date;
+- notes.
+
+Suggested locations:
+
+- Pantry;
+- Fridge;
+- Freezer;
+- custom/Other.
+
+Location and quantity must not slow the common scan -> expiry -> add flow.
+
+## Expiry dates
+
+Expiry is a calendar date, not an instant.
+
+Persist it as:
+
+```text
+YYYY-MM-DD
+```
+
+Do not store an arbitrary midnight UTC timestamp and depend on timezone conversion.
+
+Expiry UI state is derived from the expiry date. Default expiring-soon threshold is conceptually three days and is independent from notification-rule timing.
+
+Default inventory ordering should prioritize active items with the earliest expiry first.
+
+## Item lifecycle
+
+MVP must support active and consumed/removed state. Prefer a soft lifecycle that leaves room for later waste analytics rather than destructive deletion everywhere.
+
+Future lifecycle values may include:
+
+```text
+active
+consumed
+discarded
+deleted
+```
+
+Do not build analytics before the core loop is stable.
+
+## Shared realtime state
+
+Firestore realtime listeners are the intended synchronization mechanism.
+
+Example:
+
+```text
+User A adds milk
+  -> household Firestore changes
+  -> User B receives snapshot
+  -> milk appears without refresh
+```
+
+All inventory operations must be scoped to a household the authenticated user is authorized to access.
+
+## Notifications are a core feature
+
+Notifications are backend-authoritative because local scheduling on the phone that added an item cannot reliably notify the whole household.
+
+Architecture:
+
+```text
+Firestore items + household rules
+  -> scheduled Firebase Function
+  -> determine due deliveries
+  -> idempotent delivery ledger
+  -> Firebase Cloud Messaging
+  -> APNs / household devices
+```
+
+Do not reintroduce client-only expiry scheduling as the authoritative reminder path.
+
+## Notification rules
+
+Households can define rules such as:
+
+```text
+7 days before: Use {item} this week — it expires on {expiry_date}
+3 days before: {item} expires in {days} days
+1 day before: {item} expires tomorrow
+0 days before: {item} expires today
+```
+
+MVP rule fields conceptually include:
+
+- rule ID;
+- household ID;
+- enabled;
+- days before expiry;
+- household-local send time (`HH:mm`);
+- title template;
+- body template;
+- audit timestamps/UIDs.
+
+Initial template variables:
+
+```text
+{item}
+{days}
+{expiry_date}
+{quantity}
+{location}
+```
+
+Missing optional data must degrade gracefully.
+
+Recommended defaults for a newly created household are 3-day, 1-day, and expiry-day reminders, but defaults are editable product configuration, not a permanent hardcoded limitation.
+
+## Timezones
+
+MVP notification semantics use one IANA timezone per household, for example:
+
+```text
+America/Toronto
+```
+
+Multi-timezone per-user reminder semantics are post-MVP.
+
+## Notification idempotency
+
+Duplicate worker executions must not duplicate a reminder.
+
+Delivery identity is deterministically derived from exactly:
+
+```text
+householdId + itemId + ruleId + expiryDate + recipientUid
+```
+
+The backend owns `notificationDeliveries`. Regular clients must not forge delivery records.
+
+Changing an item's expiry naturally yields a new identity while the old expiry no longer qualifies.
+
+## Device registration
+
+Device registrations live under:
+
+```text
+users/{uid}/devices/{deviceId}
+```
+
+A registration stores at least:
+
+- stable installation/device identifier;
+- platform;
+- current FCM token;
+- last-seen timestamp.
+
+The app refreshes token state and the backend removes invalid/stale registrations where practical. Regular users must never read or modify other users' device registrations.
+
+## Notification tap behavior
+
+Expiry FCM data must include at least:
+
+```json
+{
+  "type": "expiry",
+  "householdId": "...",
+  "itemId": "..."
+}
+```
+
+Desired behavior:
+
+```text
+notification tap
+  -> app/session ready
+  -> verify household access
+  -> switch household if required
+  -> open exact item detail
+```
+
+This must be physically tested with the app foreground, background, and terminated.
+
+## Firebase security invariants
+
+Security rules are application logic, not optional hardening.
+
+At minimum:
+
+1. non-members cannot read a household or its inventory;
+2. members can manage authorized inventory but cannot modify protected owner fields;
+3. members cannot self-promote to owner;
+4. a user cannot add arbitrary other users through the invite flow;
+5. users can modify only their own device records;
+6. device tokens are not publicly readable;
+7. notification deliveries are backend-managed;
+8. invite acceptance validates a real active invite;
+9. server-owned fields are not freely client-writable.
+
+Use Firebase Emulator tests for these boundaries.
+
+## Offline behavior
+
+Basic offline usability is desirable but not an MVP blocker. Firestore's own local persistence should be preferred before inventing a custom synchronization engine.
+
+Possible later behavior:
+
+- view previously loaded inventory offline;
+- queue writes while offline;
+- cache known product metadata.
+
+## UX principles
+
+Optimize for putting food away quickly.
+
+Preferred common flow:
+
+```text
+scan -> recognized product -> expiry date -> Add
+```
+
+Quantity, location, notes, purchase date, and similar fields should remain optional or progressively disclosed.
+
+Expiry state must not be communicated by color alone; include text/icons. Maintain reasonable iOS Dynamic Type behavior.
+
+Ask for camera permission when scanning is first used. Ask for notifications when the benefit is clear rather than automatically at cold launch.
+
+## Technology decisions
+
+- Flutter client; no Swift rewrite for the MVP.
+- Firebase Auth + Firestore + FCM + Functions/Scheduler + Emulator Suite.
+- Open Food Facts for packaged-product lookup.
+- Household-owned inventory.
+- Date-only expiry values.
+- Backend-owned shared reminders.
+- Permissive/MIT-compatible source strategy.
+
+Do not add a second backend such as Supabase without an explicit recorded reason.
+
+## Open-source provenance
+
+Primary imported scaffold:
+
+- `Dhiraj706Sardar/stayfresh` — MIT.
+
+Important implementation/reference source:
+
+- `Thigas-Tech/pantry_app` — MIT.
+
+Conceptual/reference sources:
+
+- Grocy — MIT;
+- Grocy SwiftUI — GPL-3.0, reference only unless licensing changes;
+- KitchenOwl — AGPL-3.0, reference only unless licensing changes.
+
+Do not copy GPL/AGPL source into the intended permissive codebase casually. Record material third-party use in `THIRD_PARTY_NOTICES.md`.
+
+## MVP non-goals
+
+Do not delay the core loop for:
+
+- recipes or AI recipes;
+- meal planning;
+- nutrition/calorie tracking;
+- grocery price comparison/ordering;
+- budgeting;
+- OCR expiry-date recognition;
+- receipt scanning;
+- social features;
+- smart-fridge/Home Assistant integrations;
+- complex waste analytics;
+- web administration;
+- Android release.
+
+## Future features worth preserving room for
+
+After MVP:
+
+- per-user notification subscriptions/quiet hours;
+- OCR expiry-date capture with confirmation;
+- Siri/Shortcuts;
+- iOS widgets;
+- consumed vs discarded waste tracking;
+- shopping-list suggestions;
+- richer multi-household administration.
+
+## Engineering rules
+
+For every meaningful implementation change:
+
+- keep `CHANGELOG.md` current;
+- add/update tests for domain logic;
+- keep `dart analyze` clean;
+- keep tests passing;
+- keep build state reproducible;
+- avoid unnecessary dependencies;
+- avoid unnecessary CI runs on private-repo feature commits;
+- do not broaden scope silently.
+
+Particularly test:
+
+- date-only expiry calculations;
+- barcode/product parsing;
+- notification template rendering;
+- notification eligibility/timezone windows;
+- idempotency identities;
+- household/invite authorization;
+- notification-target parsing/deep links.
+
+## Phase map
+
+- Phase 0: upstream audit/baseline — complete.
+- Phase 1: trustworthy single-user inventory — complete.
+- Phase 2: barcode/Open Food Facts recognition — complete initial slice.
+- Phase 3: household-owned real-time inventory — complete.
+- Phase 4: invitations — complete MVP join flow.
+- Phase 5: configurable notification rules/device registration — complete source.
+- Phase 6: backend scheduled push worker/security harness — complete source; production deployment pending.
+- Phase 7: notification deep linking/item detail — complete source; physical-device validation pending.
+- Phase 8: iOS/Firebase production configuration, polish, physical testing, and TestFlight — active.
+
+## Phase 8 release gate
+
+Before TestFlight:
+
+- choose/register one unique bundle identifier;
+- configure Apple signing team;
+- register matching Firebase iOS app;
+- replace inherited Firebase configuration with a FreshFlag-owned project;
+- complete modern Flutter Swift Package Manager migration under macOS/Xcode;
+- enable/configure APNs + FCM;
+- deploy Firestore rules and Functions;
+- replace inherited icon/splash branding;
+- build/archive/upload through App Store Connect;
+- complete privacy/beta metadata;
+- pass the physical two-account/two-device acceptance scenario in `docs/testflight.md`.
+
+When implementation choices become unclear, choose the option that makes the core loop faster, more secure, and more reliable rather than expanding the product surface.
