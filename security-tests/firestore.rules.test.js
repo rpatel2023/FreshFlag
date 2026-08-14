@@ -8,6 +8,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   Timestamp,
+  arrayRemove,
   arrayUnion,
   doc,
   getDoc,
@@ -83,6 +84,16 @@ async function seedInvite({
   });
 }
 
+const validRule = {
+  daysBefore: 3,
+  titleTemplate: '{item} expires soon',
+  bodyTemplate: '{item} expires in {days} days.',
+  sendTime: '09:00',
+  enabled: true,
+  createdAt: '2026-08-14T12:00:00.000Z',
+  updatedAt: '2026-08-14T12:00:00.000Z',
+};
+
 test('household members can read their household but outsiders cannot', async () => {
   await seedHousehold();
   const member = env.authenticatedContext('member-1').firestore();
@@ -96,18 +107,33 @@ test('only the owner can manage notification rules', async () => {
   await seedHousehold();
   const owner = env.authenticatedContext('owner-1').firestore();
   const member = env.authenticatedContext('member-1').firestore();
-  const rule = {
-    daysBefore: 3,
-    titleTemplate: '{item} expires soon',
-    bodyTemplate: '{item} expires in {days} days.',
-    sendTime: '09:00',
-    enabled: true,
+
+  await assertSucceeds(setDoc(doc(owner, 'households', 'house-1', 'notificationRules', 'rule-1'), validRule));
+  await assertFails(setDoc(doc(member, 'households', 'house-1', 'notificationRules', 'rule-2'), validRule));
+});
+
+test('household creation can atomically include owner membership and default reminders', async () => {
+  const uid = 'new-owner';
+  const db = env.authenticatedContext(uid).firestore();
+  const householdRef = doc(db, 'households', 'new-house');
+  const batch = writeBatch(db);
+
+  batch.set(householdRef, {
+    name: 'New Home',
+    ownerUid: uid,
+    memberUids: [uid],
+    timezone: 'America/Toronto',
     createdAt: '2026-08-14T12:00:00.000Z',
     updatedAt: '2026-08-14T12:00:00.000Z',
-  };
+  });
+  batch.set(doc(db, 'households', 'new-house', 'members', uid), {
+    uid,
+    role: 'owner',
+    joinedAt: '2026-08-14T12:00:00.000Z',
+  });
+  batch.set(doc(db, 'households', 'new-house', 'notificationRules', 'default-3-days'), validRule);
 
-  await assertSucceeds(setDoc(doc(owner, 'households', 'house-1', 'notificationRules', 'rule-1'), rule));
-  await assertFails(setDoc(doc(member, 'households', 'house-1', 'notificationRules', 'rule-2'), rule));
+  await assertSucceeds(batch.commit());
 });
 
 test('users can only write their own device registrations', async () => {
@@ -133,7 +159,6 @@ test('a valid invite allows exactly the signed-in user to join without a pre-rea
   const memberRef = doc(db, 'households', 'house-1', 'members', joiningUid);
   const userRef = doc(db, 'users', joiningUid);
 
-  // Household remains private until membership exists.
   await assertFails(getDoc(householdRef));
 
   const batch = writeBatch(db);
@@ -190,6 +215,79 @@ test('a member cannot escalate their role to owner', async () => {
   await assertFails(updateDoc(doc(member, 'households', 'house-1', 'members', 'member-1'), {
     role: 'owner',
   }));
+});
+
+test('an owner cannot turn another member into a second owner', async () => {
+  await seedHousehold();
+  const owner = env.authenticatedContext('owner-1').firestore();
+  await assertFails(updateDoc(doc(owner, 'households', 'house-1', 'members', 'member-1'), {
+    role: 'owner',
+  }));
+});
+
+test('owner cannot bypass invites by adding arbitrary household UIDs', async () => {
+  await seedHousehold();
+  const owner = env.authenticatedContext('owner-1').firestore();
+  await assertFails(updateDoc(doc(owner, 'households', 'house-1'), {
+    memberUids: arrayUnion('outsider-1'),
+    updatedAt: '2026-08-14T14:00:00.000Z',
+  }));
+});
+
+test('member self-leave requires household removal and membership deletion atomically', async () => {
+  await seedHousehold();
+  const uid = 'member-1';
+  const db = env.authenticatedContext(uid).firestore();
+  const householdRef = doc(db, 'households', 'house-1');
+
+  await assertFails(updateDoc(householdRef, {
+    memberUids: arrayRemove(uid),
+    updatedAt: '2026-08-14T14:00:00.000Z',
+  }));
+
+  const batch = writeBatch(db);
+  batch.update(householdRef, {
+    memberUids: arrayRemove(uid),
+    updatedAt: '2026-08-14T14:00:00.000Z',
+  });
+  batch.delete(doc(db, 'households', 'house-1', 'members', uid));
+  await assertSucceeds(batch.commit());
+});
+
+test('a regular member cannot remove another household member', async () => {
+  await seedHousehold({memberUids: ['owner-1', 'member-1', 'member-2']});
+  const db = env.authenticatedContext('member-1').firestore();
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'households', 'house-1'), {
+    memberUids: arrayRemove('member-2'),
+    updatedAt: '2026-08-14T14:00:00.000Z',
+  });
+  batch.delete(doc(db, 'households', 'house-1', 'members', 'member-2'));
+  await assertFails(batch.commit());
+});
+
+test('owner can atomically remove a non-owner member', async () => {
+  await seedHousehold();
+  const db = env.authenticatedContext('owner-1').firestore();
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'households', 'house-1'), {
+    memberUids: arrayRemove('member-1'),
+    updatedAt: '2026-08-14T14:00:00.000Z',
+  });
+  batch.delete(doc(db, 'households', 'house-1', 'members', 'member-1'));
+  await assertSucceeds(batch.commit());
+});
+
+test('household owner cannot leave by deleting their own membership', async () => {
+  await seedHousehold();
+  const db = env.authenticatedContext('owner-1').firestore();
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'households', 'house-1'), {
+    memberUids: arrayRemove('owner-1'),
+    updatedAt: '2026-08-14T14:00:00.000Z',
+  });
+  batch.delete(doc(db, 'households', 'house-1', 'members', 'owner-1'));
+  await assertFails(batch.commit());
 });
 
 test('membership in one household does not authorize writes to another', async () => {
