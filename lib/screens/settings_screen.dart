@@ -88,21 +88,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.discord),
-                    title: const Text('Discord reminders'),
-                    subtitle: Text(
-                      household.isOwner
-                          ? 'Connect a shared Discord channel for expiry reminders'
-                          : 'View the household Discord reminder status',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const DiscordRemindersScreen(),
-                      ),
-                    ),
-                  ),
                   if (household.households.length > 1)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
@@ -144,7 +129,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Push notifications'),
                   subtitle: const Text('Receive household expiry reminders'),
                   value: _notificationsEnabled,
-                  onChanged: _updatingNotifications ? null : _setNotificationsEnabled,
+                  onChanged:
+                      _updatingNotifications ? null : _setNotificationsEnabled,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.discord),
+                  title: const Text('Discord reminders'),
+                  subtitle: const Text(
+                    'Connect your own Discord channel for expiry reminders',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DiscordRemindersScreen(),
+                    ),
+                  ),
                 ),
                 SwitchListTile(
                   title: const Text('Dark mode'),
