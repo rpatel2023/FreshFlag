@@ -275,3 +275,13 @@ Branch: `feature/per-user-discord`.
 - PR #10 merged to `main` as `dc522d4d2fb1bd9fd9cc8f961767c707c36c74b5`.
 
 Result: per-user Discord reminder delivery is integrated and source-validated. Real delivery still requires deployment of the FreshFlag Firebase backend plus each user's personal Discord webhook configuration; no household-level Discord setup is required.
+
+## 2026-08-14 — Firebase production setup — EXTERNAL CHECKPOINT
+
+- Created Firebase project `FreshFlag` with project ID `freshflag`.
+- Enabled Firebase Authentication Email/Password provider.
+- Created the `(default)` Cloud Firestore Standard database in `us-central1` using production-mode starter rules.
+- Upgraded the Firebase project to the Blaze plan and configured the billing budget alert during setup.
+- Ubuntu runtime currently has Node `v20.20.2` and npm `11.12.1`.
+- Firebase CLI is not installed yet. `npm install -g firebase-tools` failed with `EACCES` because npm's global prefix targets `/usr/lib/node_modules` for the unprivileged user.
+- Next: configure a user-owned npm global prefix under the home directory, install `firebase-tools` without `sudo`, verify the CLI version, then authenticate with `firebase login`.
