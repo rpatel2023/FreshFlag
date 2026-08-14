@@ -1,17 +1,29 @@
+import 'dart:math';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// Client-side Firebase Cloud Messaging plumbing.
+import 'firebase_auth_service.dart';
+
+/// Client-side Firebase Cloud Messaging registration plumbing.
 ///
-/// FreshFlag never sends FCM messages from the client. Device-token persistence
-/// and server-side delivery are added with the household notification backend.
+/// FreshFlag never sends FCM messages from the client. Each app installation
+/// owns a stable local device ID; its current FCM registration token is stored
+/// at `users/{uid}/devices/{deviceId}` for backend delivery.
 class FCMService {
   static final FCMService _instance = FCMService._internal();
   static FCMService get instance => _instance;
 
   FCMService._internal();
 
+  static const _deviceIdPreferenceKey = 'freshflag_device_id';
+
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuthService _auth = FirebaseAuthService.instance;
+
   String? _currentToken;
   bool _isInitialized = false;
 
@@ -25,10 +37,10 @@ class FCMService {
       await requestPermissions();
       _currentToken = await _fcm.getToken();
 
-      _fcm.onTokenRefresh.listen((token) {
+      _fcm.onTokenRefresh.listen((token) async {
         _currentToken = token;
         debugPrint('FCM token refreshed.');
-        // Phase 6 persists this under users/{uid}/devices/{deviceId}.
+        await syncRegistrationForCurrentUser(token: token);
       });
 
       FirebaseMessaging.onMessage.listen((message) {
@@ -76,31 +88,74 @@ class FCMService {
     }
   }
 
-  Future<void> subscribeToTopic(String topic) => _fcm.subscribeToTopic(topic);
+  Future<void> syncRegistrationForCurrentUser({String? token}) async {
+    final uid = _auth.currentUserId;
+    if (uid == null) return;
 
-  Future<void> unsubscribeFromTopic(String topic) =>
-      _fcm.unsubscribeFromTopic(topic);
+    try {
+      final currentToken = token ?? _currentToken ?? await _fcm.getToken();
+      if (currentToken == null || currentToken.isEmpty) return;
+      _currentToken = currentToken;
 
-  /// Retained temporarily for the inherited diagnostic widget.
-  ///
-  /// Client-side message sending is deliberately disabled because an FCM
-  /// server credential must never be shipped inside the application.
-  Future<bool> sendTestNotification({
-    required String item,
-    required String daysLeft,
-    String? customUserId,
-  }) async {
-    debugPrint(
-      'Client-side FCM sending is disabled. '
-      'item=$item daysLeft=$daysLeft user=$customUserId',
-    );
-    return false;
+      final deviceId = await _getOrCreateDeviceId();
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('devices')
+          .doc(deviceId)
+          .set(
+        {
+          'deviceId': deviceId,
+          'fcmToken': currentToken,
+          'platform': _platformName,
+          'lastSeenAt': DateTime.now().toUtc().toIso8601String(),
+        },
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      debugPrint('FCM registration sync failed: $e');
+    }
   }
 
-  /// Compatibility no-op for inherited callers while Supabase is removed.
-  /// Device-token persistence moves to Firestore in the backend notification
-  /// phase rather than another database.
-  Future<void> storeTokenInSupabase(String? userId) async {
-    debugPrint('Supabase token persistence removed; user=$userId');
+  Future<void> removeCurrentUserRegistration() async {
+    final uid = _auth.currentUserId;
+    if (uid == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString(_deviceIdPreferenceKey);
+      if (deviceId == null) return;
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('devices')
+          .doc(deviceId)
+          .delete();
+    } catch (e) {
+      debugPrint('FCM registration removal failed: $e');
+    }
+  }
+
+  Future<String> _getOrCreateDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString(_deviceIdPreferenceKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    final id = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    await prefs.setString(_deviceIdPreferenceKey, id);
+    return id;
+  }
+
+  String get _platformName {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      TargetPlatform.macOS => 'macos',
+      TargetPlatform.windows => 'windows',
+      TargetPlatform.linux => 'linux',
+      TargetPlatform.fuchsia => 'fuchsia',
+    };
   }
 }
