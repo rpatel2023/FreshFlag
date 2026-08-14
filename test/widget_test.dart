@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:freshflag/models/grocery_item.dart';
 import 'package:freshflag/models/household.dart';
+import 'package:freshflag/models/household_invite.dart';
 import 'package:freshflag/models/product_lookup_result.dart';
 
 void main() {
@@ -120,6 +121,37 @@ void main() {
       expect(restored.uid, member.uid);
       expect(restored.role, HouseholdRole.owner);
       expect(restored.joinedAt, member.joinedAt);
+    });
+  });
+
+  group('HouseholdInvite', () {
+    test('normalizes human-entered invite codes', () {
+      expect(
+        HouseholdInvite.normalizeCode(' abcd-efgh 2345 '),
+        'ABCDEFGH2345',
+      );
+    });
+
+    test('reports active only while status is active and unexpired', () {
+      final active = HouseholdInvite(
+        code: 'ABCDEFGH2345',
+        householdId: 'house-1',
+        createdByUid: 'owner-1',
+        createdAt: DateTime.utc(2026, 8, 14),
+        expiresAt: DateTime.utc(2100, 1, 1),
+        status: HouseholdInviteStatus.active,
+      );
+      final revoked = HouseholdInvite(
+        code: 'ABCDEFGH2345',
+        householdId: 'house-1',
+        createdByUid: 'owner-1',
+        createdAt: DateTime.utc(2026, 8, 14),
+        expiresAt: DateTime.utc(2100, 1, 1),
+        status: HouseholdInviteStatus.revoked,
+      );
+
+      expect(active.isActive, isTrue);
+      expect(revoked.isActive, isFalse);
     });
   });
 

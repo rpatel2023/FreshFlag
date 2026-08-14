@@ -6,6 +6,7 @@ import '../services/local_database_service.dart';
 import '../theme/theme_provider.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/household_viewmodel.dart';
+import 'household_invite_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -34,9 +35,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: ListTile(
               leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-              title: Text(user?.displayName?.trim().isNotEmpty == true
-                  ? user!.displayName!
-                  : 'FreshFlag user'),
+              title: Text(
+                user?.displayName?.trim().isNotEmpty == true
+                    ? user!.displayName!
+                    : 'FreshFlag user',
+              ),
               subtitle: Text(user?.email ?? 'Signed in'),
             ),
           ),
@@ -50,6 +53,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: Text(current.name),
                     subtitle: Text(
                       '${current.timezone} • ${household.isOwner ? 'Owner' : 'Member'}',
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.group_add_outlined),
+                    title: const Text('Household sharing'),
+                    subtitle: Text(
+                      household.isOwner
+                          ? 'Create invite codes or join another household'
+                          : 'Join another household with an invite code',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const HouseholdInviteScreen(),
+                      ),
                     ),
                   ),
                   if (household.households.length > 1)
@@ -66,10 +84,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           labelText: 'Active household',
                         ),
                         items: household.households
-                            .map((item) => DropdownMenuItem(
-                                  value: item.id,
-                                  child: Text(item.name),
-                                ))
+                            .map(
+                              (item) => DropdownMenuItem(
+                                value: item.id,
+                                child: Text(item.name),
+                              ),
+                            )
                             .toList(),
                         onChanged: household.isLoading
                             ? null
@@ -112,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const ListTile(
                   leading: Icon(Icons.info_outline),
                   title: Text('FreshFlag'),
-                  subtitle: Text('Household inventory build'),
+                  subtitle: Text('Shared household inventory build'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.logout),
