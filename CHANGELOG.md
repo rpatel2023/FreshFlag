@@ -283,5 +283,7 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
 - Created the `(default)` Cloud Firestore Standard database in `us-central1` using production-mode starter rules.
 - Upgraded the Firebase project to the Blaze plan and configured the billing budget alert during setup.
 - Ubuntu runtime currently has Node `v20.20.2` and npm `11.12.1`.
-- Firebase CLI is not installed yet. `npm install -g firebase-tools` failed with `EACCES` because npm's global prefix targets `/usr/lib/node_modules` for the unprivileged user.
-- Next: configure a user-owned npm global prefix under the home directory, install `firebase-tools` without `sudo`, verify the CLI version, then authenticate with `firebase login`.
+- Initial `npm install -g firebase-tools` failed with `EACCES` because npm's global prefix targeted `/usr/lib/node_modules` for the unprivileged user.
+- Configured user-owned npm global prefix at `~/.local/npm`, added its `bin` directory to `PATH`, and installed Firebase CLI successfully without `sudo`.
+- Firebase CLI version verified as `15.27.0`.
+- Next: authenticate the CLI with `firebase login`, confirm the `freshflag` project is visible, then install/verify FlutterFire CLI.
