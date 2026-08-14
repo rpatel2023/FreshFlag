@@ -103,6 +103,22 @@ test('household members can read their household but outsiders cannot', async ()
   await assertFails(getDoc(doc(outsider, 'households', 'house-1')));
 });
 
+test('only the owner can update household name and timezone', async () => {
+  await seedHousehold();
+  const owner = env.authenticatedContext('owner-1').firestore();
+  const member = env.authenticatedContext('member-1').firestore();
+
+  await assertSucceeds(updateDoc(doc(owner, 'households', 'house-1'), {
+    name: 'Renamed Home',
+    timezone: 'America/Vancouver',
+    updatedAt: '2026-08-14T14:00:00.000Z',
+  }));
+  await assertFails(updateDoc(doc(member, 'households', 'house-1'), {
+    name: 'Hijacked Home',
+    updatedAt: '2026-08-14T14:01:00.000Z',
+  }));
+});
+
 test('only the owner can manage notification rules', async () => {
   await seedHousehold();
   const owner = env.authenticatedContext('owner-1').firestore();
@@ -266,13 +282,23 @@ test('a regular member cannot remove another household member', async () => {
   await assertFails(batch.commit());
 });
 
-test('owner can atomically remove a non-owner member', async () => {
+test('owner removal must atomically identify and delete exactly that membership', async () => {
   await seedHousehold();
   const db = env.authenticatedContext('owner-1').firestore();
+
+  const incomplete = writeBatch(db);
+  incomplete.update(doc(db, 'households', 'house-1'), {
+    memberUids: arrayRemove('member-1'),
+    updatedAt: '2026-08-14T14:00:00.000Z',
+  });
+  incomplete.delete(doc(db, 'households', 'house-1', 'members', 'member-1'));
+  await assertFails(incomplete.commit());
+
   const batch = writeBatch(db);
   batch.update(doc(db, 'households', 'house-1'), {
     memberUids: arrayRemove('member-1'),
-    updatedAt: '2026-08-14T14:00:00.000Z',
+    lastRemovedUid: 'member-1',
+    updatedAt: '2026-08-14T14:01:00.000Z',
   });
   batch.delete(doc(db, 'households', 'house-1', 'members', 'member-1'));
   await assertSucceeds(batch.commit());
@@ -284,10 +310,32 @@ test('household owner cannot leave by deleting their own membership', async () =
   const batch = writeBatch(db);
   batch.update(doc(db, 'households', 'house-1'), {
     memberUids: arrayRemove('owner-1'),
+    lastRemovedUid: 'owner-1',
     updatedAt: '2026-08-14T14:00:00.000Z',
   });
   batch.delete(doc(db, 'households', 'house-1', 'members', 'owner-1'));
   await assertFails(batch.commit());
+});
+
+test('inventory document identity must match its Firestore path', async () => {
+  await seedHousehold();
+  const member = env.authenticatedContext('member-1').firestore();
+  const data = {
+    id: 'wrong-id',
+    householdId: 'house-1',
+    name: 'Milk',
+    quantity: 1,
+    category: 'Dairy',
+    addedDate: '2026-08-14T12:00:00.000Z',
+    expiryDate: '2026-08-20',
+    createdByUid: 'member-1',
+    updatedByUid: 'member-1',
+  };
+  await assertFails(setDoc(doc(member, 'households', 'house-1', 'items', 'item-1'), data));
+  await assertSucceeds(setDoc(doc(member, 'households', 'house-1', 'items', 'item-1'), {
+    ...data,
+    id: 'item-1',
+  }));
 });
 
 test('membership in one household does not authorize writes to another', async () => {
@@ -306,6 +354,15 @@ test('membership in one household does not authorize writes to another', async (
     createdByUid: 'member-1',
     updatedByUid: 'member-1',
   }));
+});
+
+test('shared product cache is inaccessible to regular clients', async () => {
+  const user = env.authenticatedContext('user-1').firestore();
+  await assertFails(setDoc(doc(user, 'productCache', '3017620422003'), {
+    barcode: '3017620422003',
+    name: 'Poisoned product',
+  }));
+  await assertFails(getDoc(doc(user, 'productCache', '3017620422003')));
 });
 
 test('notification delivery ledger is inaccessible to clients', async () => {
