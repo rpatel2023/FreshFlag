@@ -24,6 +24,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
+  final _locationController = TextEditingController();
   final _notesController = TextEditingController();
   DateTime? _expiryDate;
   String _category = 'Other';
@@ -53,6 +54,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   void dispose() {
     _nameController.dispose();
     _quantityController.dispose();
+    _locationController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -144,6 +146,16 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   },
                 ),
                 const SizedBox(height: AppTheme.spacingM),
+                TextFormField(
+                  controller: _locationController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Storage location (optional)',
+                    hintText: 'Fridge, freezer, pantry…',
+                    prefixIcon: Icon(Icons.kitchen_outlined),
+                  ),
+                ),
+                const SizedBox(height: AppTheme.spacingM),
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.calendar_today_outlined),
@@ -218,6 +230,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
       return;
     }
 
+    final location = _locationController.text.trim();
     final item = GroceryItem(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       name: _nameController.text.trim(),
@@ -226,6 +239,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
       barcode: widget.initialBarcode,
       addedDate: DateTime.now(),
       expiryDate: _expiryDate!,
+      location: location.isEmpty ? null : location,
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
