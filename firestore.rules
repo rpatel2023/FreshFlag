@@ -69,13 +69,28 @@ service cloud.firestore {
         !existsAfter(memberPath(householdId, request.auth.uid));
     }
 
-    function validOwnerHouseholdUpdate(householdId) {
+    function validOwnerMetadataUpdate(householdId) {
       return isHouseholdOwner(householdId) &&
         request.resource.data.ownerUid == resource.data.ownerUid &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'timezone', 'memberUids', 'updatedAt']) &&
+          .hasOnly(['name', 'timezone', 'updatedAt']);
+    }
+
+    function validOwnerMemberRemoval(householdId) {
+      return isHouseholdOwner(householdId) &&
+        request.resource.data.ownerUid == resource.data.ownerUid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['memberUids', 'lastRemovedUid', 'updatedAt']) &&
+        request.resource.data.lastRemovedUid is string &&
+        request.resource.data.lastRemovedUid != request.auth.uid &&
+        request.resource.data.lastRemovedUid in resource.data.memberUids &&
+        !(request.resource.data.lastRemovedUid in request.resource.data.memberUids) &&
         resource.data.memberUids.hasAll(request.resource.data.memberUids) &&
-        request.auth.uid in request.resource.data.memberUids;
+        request.resource.data.memberUids.size() == resource.data.memberUids.size() - 1 &&
+        request.auth.uid in request.resource.data.memberUids &&
+        !existsAfter(
+          memberPath(householdId, request.resource.data.lastRemovedUid)
+        );
     }
 
     function validReminderRule(data) {
@@ -110,7 +125,8 @@ service cloud.firestore {
         request.resource.data.memberUids.size() == 1 &&
         request.resource.data.memberUids[0] == request.auth.uid;
 
-      allow update: if validOwnerHouseholdUpdate(householdId) ||
+      allow update: if validOwnerMetadataUpdate(householdId) ||
+        validOwnerMemberRemoval(householdId) ||
         validSelfJoin(householdId) ||
         validSelfLeave(householdId);
 
@@ -140,6 +156,7 @@ service cloud.firestore {
         allow delete: if (
             isHouseholdOwner(householdId) &&
             uid != request.auth.uid &&
+            getAfter(householdPath(householdId)).data.lastRemovedUid == uid &&
             !(uid in getAfter(householdPath(householdId)).data.memberUids)
           ) || (
             signedIn() &&
@@ -153,14 +170,18 @@ service cloud.firestore {
         allow read: if isHouseholdMember(householdId);
 
         allow create: if isHouseholdMember(householdId) &&
+          request.resource.data.id == itemId &&
           request.resource.data.householdId == householdId &&
           request.resource.data.createdByUid == request.auth.uid &&
           request.resource.data.updatedByUid == request.auth.uid;
 
         allow update: if isHouseholdMember(householdId) &&
+          request.resource.data.id == itemId &&
+          request.resource.data.id == resource.data.id &&
           request.resource.data.householdId == householdId &&
           request.resource.data.householdId == resource.data.householdId &&
           request.resource.data.createdByUid == resource.data.createdByUid &&
+          request.resource.data.addedDate == resource.data.addedDate &&
           request.resource.data.updatedByUid == request.auth.uid;
 
         allow delete: if isHouseholdMember(householdId);
@@ -190,6 +211,11 @@ service cloud.firestore {
         request.resource.data.expiresAt > request.time;
 
       allow update, delete: if isHouseholdOwner(resource.data.householdId);
+    }
+
+    // Shared product metadata is backend-owned so clients cannot poison cache.
+    match /productCache/{barcode} {
+      allow read, write: if false;
     }
 
     // Backend-only delivery ledger. Admin SDK bypasses client security rules.
