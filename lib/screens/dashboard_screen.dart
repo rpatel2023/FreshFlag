@@ -6,6 +6,7 @@ import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 import 'add_item_screen.dart';
 import 'barcode_scanner_screen.dart';
+import 'item_detail_screen.dart';
 
 /// Firestore-backed inventory dashboard.
 class DashboardScreen extends StatefulWidget {
@@ -116,6 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
                   child: _InventoryCard(
                     item: item,
+                    onTap: () => _openItem(context, item),
                     onDelete: () => _deleteItem(context, item),
                   ),
                 ),
@@ -135,6 +137,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _openScanner(BuildContext context) async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+    );
+  }
+
+  Future<void> _openItem(BuildContext context, GroceryItem item) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ItemDetailScreen(
+          itemId: item.id,
+          initialItem: item,
+        ),
+      ),
     );
   }
 
@@ -254,9 +267,14 @@ class _SummaryValue extends StatelessWidget {
 }
 
 class _InventoryCard extends StatelessWidget {
-  const _InventoryCard({required this.item, required this.onDelete});
+  const _InventoryCard({
+    required this.item,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   final GroceryItem item;
+  final VoidCallback onTap;
   final VoidCallback onDelete;
 
   @override
@@ -270,6 +288,7 @@ class _InventoryCard extends StatelessWidget {
 
     return Card(
       child: ListTile(
+        onTap: onTap,
         leading: CircleAvatar(
           backgroundColor: AppTheme.lightGreen,
           child: const Icon(Icons.inventory_2_outlined),
