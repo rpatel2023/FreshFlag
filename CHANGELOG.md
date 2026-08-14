@@ -301,3 +301,15 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
 - Registered Firebase iOS app `FreshFlag` with bundle ID `com.rpatel2023.freshflag`.
 - Firebase iOS App ID: `1:765920629957:ios:7e3a403712197ed143ccac`.
 - Next: retrieve the iOS Firebase SDK configuration directly with `firebase apps:sdkconfig`.
+
+### Production iOS Firebase configuration — VALIDATED
+
+- Retrieved the production iOS Firebase SDK configuration directly with `firebase apps:sdkconfig`.
+- Added `ios/Runner/GoogleService-Info.plist` for Firebase project `freshflag` and bundle ID `com.rpatel2023.freshflag`.
+- Replaced the temporary `lib/firebase_options.dart` stub with the real FreshFlag iOS Firebase options.
+- Non-iOS platforms remain explicitly unsupported by `DefaultFirebaseOptions` until their own Firebase apps are intentionally registered.
+- Ubuntu validation after installing the real Firebase options:
+  - `dart analyze`: **No issues found**.
+  - `flutter test`: **21/21 passed**.
+- Flutter's incidental `analysis_options.yaml` rewrite was discarded; the working tree returned clean.
+- Next production deployment step: deploy the tested Firestore security rules before deploying Cloud Functions.
