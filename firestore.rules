@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Phase 1: a signed-in user can only access their own profile namespace.
+    match /users/{uid} {
+      allow read, create, update, delete: if isSelf(uid);
+
+      match /groceryItems/{itemId} {
+        allow read, create, update, delete: if isSelf(uid);
+      }
+    }
+
+    // Everything else is denied until an explicit FreshFlag data model and
+    // corresponding emulator tests are introduced in later phases.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
