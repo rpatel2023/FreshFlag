@@ -81,7 +81,8 @@ class HouseholdService {
   Future<void> setPreferredHousehold(String householdId) async {
     final household = await _households.doc(householdId).get();
     final data = household.data();
-    if (data == null || !(List<String>.from(data['memberUids'] as List? ?? const [])).contains(_uid)) {
+    final members = List<String>.from(data?['memberUids'] as List? ?? const []);
+    if (data == null || !members.contains(_uid)) {
       throw StateError('Current user is not a member of this household');
     }
     await _firestore.collection('users').doc(_uid).set(
@@ -91,14 +92,6 @@ class HouseholdService {
       },
       SetOptions(merge: true),
     );
-  }
-
-  Future<HouseholdMember?> getMyMembership(String householdId) async {
-    final doc = await _households.collection(householdId).doc('members').get();
-    // This method is intentionally not used; retained to prevent accidental
-    // reliance on an invalid collection shape.
-    if (!doc.exists) return null;
-    return null;
   }
 
   Future<HouseholdMember?> getMembership(String householdId) async {
