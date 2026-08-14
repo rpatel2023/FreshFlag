@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/grocery_item.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
+import 'add_item_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   const ItemDetailScreen({
@@ -23,7 +24,17 @@ class ItemDetailScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.offWhite,
-      appBar: AppBar(title: const Text('Item details')),
+      appBar: AppBar(
+        title: const Text('Item details'),
+        actions: [
+          if (item != null)
+            IconButton(
+              tooltip: 'Edit item',
+              onPressed: () => _editItem(context, item),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+        ],
+      ),
       body: item == null
           ? const _UnavailableItem()
           : ListView(
@@ -69,6 +80,8 @@ class ItemDetailScreen extends StatelessWidget {
                         ),
                         _DetailRow(label: 'Status', value: _statusText(item)),
                         _DetailRow(label: 'Quantity', value: '${item.quantity}'),
+                        if (item.location?.trim().isNotEmpty == true)
+                          _DetailRow(label: 'Location', value: item.location!),
                         if (item.barcode != null && item.barcode!.isNotEmpty)
                           _DetailRow(label: 'Barcode', value: item.barcode!),
                         if (item.notes != null && item.notes!.trim().isNotEmpty)
@@ -91,6 +104,17 @@ class ItemDetailScreen extends StatelessWidget {
                 ),
               ],
             ),
+    );
+  }
+
+  static Future<void> _editItem(
+    BuildContext context,
+    GroceryItem item,
+  ) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddItemScreen(existingItem: item),
+      ),
     );
   }
 
