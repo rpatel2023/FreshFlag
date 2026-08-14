@@ -211,4 +211,43 @@ Confirmed README mismatches include:
 
 No further Linux commands are needed to establish basic source viability. The major remaining platform gap is iOS, which cannot be meaningfully runtime-verified from Ubuntu. Android verification is optional for Phase 0 because FreshFlag's primary target is iPhone/TestFlight and Linux already proves the Dart/native project compiles.
 
-Next documentation step: produce `docs/BASELINE_AUDIT.md` consolidating all findings and explicitly classify what is working, incomplete, misleading, or blocked.
+---
+
+## 2026-08-14 — Phase 0 completed
+
+### Baseline audit published
+
+- Added `docs/BASELINE_AUDIT.md`.
+- Consolidated runtime, static, architecture, README-accuracy, iOS, Firebase, barcode, notification, auth, Firestore, and testing findings.
+- Classified each major subsystem as working, partial, misleading, missing, blocked, or unverified.
+
+### Phase 0 decision
+
+**Decision: continue with StayFresh as scaffolding.**
+
+Reasoning:
+
+- The Flutter app compiles successfully for Linux.
+- Firebase Auth, Firestore, FCM plumbing, and barcode camera scanning are real implementations rather than pure mocks.
+- The current deficiencies are understood and tractable.
+- Replacing the entire base with another project is not justified by the audit evidence.
+
+However, FreshFlag must not layer household features onto the current demo behavior. Phase 1 must first establish a trustworthy single-user foundation.
+
+### Important Phase 1 priorities established
+
+1. Establish a supported/reproducible Flutter dependency baseline.
+2. Add real automated tests before changing persistence behavior.
+3. Remove anonymous automatic sign-in and silent dummy-data fallback.
+4. Fix Firestore document/local item ID consistency.
+5. Make authenticated single-user Firestore inventory trustworthy.
+6. Convert expiry handling to date-only semantics.
+7. Remove Supabase from the core architecture unless a concrete requirement justifies it.
+8. Create/configure a FreshFlag Firebase project and proper iOS app configuration.
+9. Add required iOS permissions, including camera usage description.
+10. Defer household collaboration until these foundations are stable.
+
+### Deferred verification
+
+- Actual iOS build/signing/TestFlight verification remains deferred until a macOS/Xcode environment is available.
+- Android compile remains optional/deferred because it is not the primary MVP platform.
