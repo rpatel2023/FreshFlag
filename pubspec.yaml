@@ -1,5 +1,5 @@
-name: stayfresh
-description: A smart grocery tracker with expiry alerts and barcode scanning
+name: freshflag
+description: Shared food-expiry tracking with barcode scanning and reminders.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -7,42 +7,24 @@ environment:
   sdk: ^3.8.1
 
 dependencies:
-  cached_network_image: ^3.3.1
   cloud_firestore: ^4.13.6
-  cupertino_icons: ^1.0.8
   firebase_auth: ^4.15.3
   firebase_core: ^2.24.2
   firebase_messaging: ^14.7.10
   flutter:
     sdk: flutter
-  flutter_bloc: ^9.1.1
-  flutter_dotenv: ^5.1.0
-  flutter_launcher_icons: ^0.14.4
   flutter_local_notifications: ^17.2.3
-  flutter_staggered_animations: ^1.1.1
-  google_sign_in: ^7.1.1
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
-  http: ^1.1.0
-  image_picker: ^1.0.7
-  intl: ^0.18.1
-  lottie: ^3.1.2
+  http: ^1.5.0
   mobile_scanner: ^5.2.3
   provider: ^6.1.2
   shared_preferences: ^2.2.2
-  smooth_page_indicator: ^1.1.0
-  supabase_flutter: ^2.9.1
   timezone: ^0.9.4
 
 dev_dependencies:
-
-  # Code generation for Hive
-  build_runner: ^2.4.9
+  flutter_launcher_icons: ^0.14.4
   flutter_lints: ^5.0.0
   flutter_test:
     sdk: flutter
-  hive_generator: ^2.0.1
-
 
 flutter_launcher_icons:
   android: "launcher_icon"
@@ -62,22 +44,15 @@ flutter_launcher_icons:
     generate: true
     image_path: "assets/images/logos/stayfresh.png"
 
-
 flutter:
   uses-material-design: true
-
   assets:
-    # Images
     - assets/images/
     - assets/images/onboarding/
     - assets/images/illustrations/
     - assets/images/logos/
     - assets/images/placeholders/
-
-    # Icons
     - assets/icons/
     - assets/icons/categories/
     - assets/icons/navigation/
-
-    # Sounds
     - assets/sounds/

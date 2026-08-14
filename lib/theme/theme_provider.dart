@@ -1,19 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart';
-
-// Theme configuration class to hold theme data
 
 class ThemeProvider with ChangeNotifier, DiagnosticableTreeMixin {
   static const String _themeKey = 'isDarkMode';
   bool _isDarkMode = false;
 
   bool get isDarkMode => _isDarkMode;
-  
-  // Expose theme data
+
   ThemeData get currentTheme => _isDarkMode ? darkTheme : lightTheme;
-  
-  // Constructor loads theme preference
+
   ThemeProvider() {
     _loadThemePreference();
   }
@@ -34,8 +30,7 @@ class ThemeProvider with ChangeNotifier, DiagnosticableTreeMixin {
     await prefs.setBool(_themeKey, _isDarkMode);
     notifyListeners();
   }
-  
-  // Helper method to update theme directly
+
   Future<void> setDarkMode(bool isDark) async {
     if (_isDarkMode != isDark) {
       _isDarkMode = isDark;
@@ -45,7 +40,6 @@ class ThemeProvider with ChangeNotifier, DiagnosticableTreeMixin {
     }
   }
 
-  // Light theme
   static final ThemeData lightTheme = ThemeData(
     primarySwatch: Colors.blue,
     brightness: Brightness.light,
@@ -58,13 +52,10 @@ class ThemeProvider with ChangeNotifier, DiagnosticableTreeMixin {
     colorScheme: ColorScheme.light(
       primary: Colors.blue,
       secondary: Colors.blueAccent,
-      surface: Colors.white,
-      background: Colors.grey[50]!,
+      surface: Colors.grey[50]!,
     ),
-    // Add more light theme customizations here
   );
 
-  // Dark theme
   static final ThemeData darkTheme = ThemeData(
     primarySwatch: Colors.blue,
     brightness: Brightness.dark,
@@ -77,8 +68,6 @@ class ThemeProvider with ChangeNotifier, DiagnosticableTreeMixin {
       primary: Colors.blue,
       secondary: Colors.blueAccent,
       surface: Color(0xFF1E1E1E),
-      background: Color(0xFF121212),
     ),
-    // Add more dark theme customizations here
   );
 }

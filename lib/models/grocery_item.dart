@@ -1,43 +1,9 @@
-import 'package:hive/hive.dart';
-
-part 'grocery_item.g.dart';
-
-/// Model representing a grocery item in the StayFresh app
-/// 
-/// This model contains all the essential information about a grocery item
-/// including its identification, details, dates, and optional image.
-@HiveType(typeId: 1)
-class GroceryItem extends HiveObject {
-  @HiveField(0)
-  String id;
-
-  @HiveField(1)
-  String name;
-
-  @HiveField(2)
-  int quantity;
-
-  @HiveField(3)
-  String category;
-
-  @HiveField(4)
-  String? barcode;
-
-  @HiveField(5)
-  DateTime addedDate;
-
-  @HiveField(6)
-  DateTime expiryDate;
-
-  @HiveField(7)
-  String? imageUrl;
-
-  @HiveField(8)
-  String? notes;
-
-  @HiveField(9)
-  bool isConsumed;
-
+/// Grocery inventory item persisted in Firestore.
+///
+/// Expiry is a calendar date. It is normalized to local midnight in memory and
+/// serialized as `YYYY-MM-DD` so timezone/time-of-day cannot change which day
+/// the food is considered to expire.
+class GroceryItem {
   GroceryItem({
     required this.id,
     required this.name,
@@ -45,13 +11,23 @@ class GroceryItem extends HiveObject {
     required this.category,
     this.barcode,
     required this.addedDate,
-    required this.expiryDate,
+    required DateTime expiryDate,
     this.imageUrl,
     this.notes,
     this.isConsumed = false,
-  });
+  }) : expiryDate = normalizeDateOnly(expiryDate);
 
-  /// Convert to Map for database storage
+  final String id;
+  final String name;
+  final int quantity;
+  final String category;
+  final String? barcode;
+  final DateTime addedDate;
+  final DateTime expiryDate;
+  final String? imageUrl;
+  final String? notes;
+  final bool isConsumed;
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -60,32 +36,33 @@ class GroceryItem extends HiveObject {
       'category': category,
       'barcode': barcode,
       'addedDate': addedDate.toIso8601String(),
-      'expiryDate': expiryDate.toIso8601String(),
+      'expiryDate': formatDateOnly(expiryDate),
       'imageUrl': imageUrl,
+      'notes': notes,
+      'isConsumed': isConsumed,
     };
   }
 
-  /// Create from Map (database retrieval)
   factory GroceryItem.fromMap(Map<String, dynamic> map) {
     return GroceryItem(
       id: map['id'] as String,
       name: map['name'] as String,
-      quantity: map['quantity'] as int,
+      quantity: (map['quantity'] as num).toInt(),
       category: map['category'] as String,
       barcode: map['barcode'] as String?,
       addedDate: DateTime.parse(map['addedDate'] as String),
-      expiryDate: DateTime.parse(map['expiryDate'] as String),
+      expiryDate: parseDateOnly(map['expiryDate'] as String),
       imageUrl: map['imageUrl'] as String?,
+      notes: map['notes'] as String?,
+      isConsumed: map['isConsumed'] as bool? ?? false,
     );
   }
 
-  /// Convert to JSON for API calls
   Map<String, dynamic> toJson() => toMap();
 
-  /// Create from JSON
-  factory GroceryItem.fromJson(Map<String, dynamic> json) => GroceryItem.fromMap(json);
+  factory GroceryItem.fromJson(Map<String, dynamic> json) =>
+      GroceryItem.fromMap(json);
 
-  /// Create a copy with updated fields (immutable updates)
   GroceryItem copyWith({
     String? id,
     String? name,
@@ -95,6 +72,8 @@ class GroceryItem extends HiveObject {
     DateTime? addedDate,
     DateTime? expiryDate,
     String? imageUrl,
+    String? notes,
+    bool? isConsumed,
   }) {
     return GroceryItem(
       id: id ?? this.id,
@@ -105,33 +84,49 @@ class GroceryItem extends HiveObject {
       addedDate: addedDate ?? this.addedDate,
       expiryDate: expiryDate ?? this.expiryDate,
       imageUrl: imageUrl ?? this.imageUrl,
+      notes: notes ?? this.notes,
+      isConsumed: isConsumed ?? this.isConsumed,
     );
   }
 
-  /// Get days until expiry (negative if expired)
   int get daysUntilExpiry {
     final now = DateTime.now();
-    final difference = expiryDate.difference(DateTime(now.year, now.month, now.day));
-    return difference.inDays;
+    final today = normalizeDateOnly(now);
+    return expiryDate.difference(today).inDays;
   }
 
-  /// Check if item is expired
   bool get isExpired => daysUntilExpiry < 0;
 
-  /// Check if item is expiring soon (within 3 days)
   bool get isExpiringSoon => daysUntilExpiry >= 0 && daysUntilExpiry <= 3;
 
-  /// Get expiry status for UI display
   ExpiryStatus get expiryStatus {
     if (isExpired) return ExpiryStatus.expired;
     if (isExpiringSoon) return ExpiryStatus.expiringSoon;
     return ExpiryStatus.fresh;
   }
 
+  static DateTime normalizeDateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  /// Accepts current `YYYY-MM-DD` values and inherited full ISO timestamps.
+  static DateTime parseDateOnly(String value) {
+    final parsed = DateTime.parse(value);
+    return normalizeDateOnly(parsed);
+  }
+
+  static String formatDateOnly(DateTime value) {
+    final date = normalizeDateOnly(value);
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+
   @override
   String toString() {
-    return 'GroceryItem(id: $id, name: $name, quantity: $quantity, category: $category, '
-           'barcode: $barcode, addedDate: $addedDate, expiryDate: $expiryDate, imageUrl: $imageUrl)';
+    return 'GroceryItem(id: $id, name: $name, quantity: $quantity, '
+        'category: $category, barcode: $barcode, addedDate: $addedDate, '
+        'expiryDate: ${formatDateOnly(expiryDate)}, imageUrl: $imageUrl, '
+        'notes: $notes, isConsumed: $isConsumed)';
   }
 
   @override
@@ -145,25 +140,24 @@ class GroceryItem extends HiveObject {
         other.barcode == barcode &&
         other.addedDate == addedDate &&
         other.expiryDate == expiryDate &&
-        other.imageUrl == imageUrl;
+        other.imageUrl == imageUrl &&
+        other.notes == notes &&
+        other.isConsumed == isConsumed;
   }
 
   @override
-  int get hashCode {
-    return id.hashCode ^
-           name.hashCode ^
-           quantity.hashCode ^
-           category.hashCode ^
-           barcode.hashCode ^
-           addedDate.hashCode ^
-           expiryDate.hashCode ^
-           imageUrl.hashCode;
-  }
+  int get hashCode => Object.hash(
+        id,
+        name,
+        quantity,
+        category,
+        barcode,
+        addedDate,
+        expiryDate,
+        imageUrl,
+        notes,
+        isConsumed,
+      );
 }
 
-/// Enum representing the expiry status of a grocery item
-enum ExpiryStatus {
-  fresh,
-  expiringSoon,
-  expired,
-}
+enum ExpiryStatus { fresh, expiringSoon, expired }

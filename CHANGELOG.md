@@ -1,253 +1,205 @@
 # FreshFlag Changelog
 
-This file records meaningful project milestones, decisions, audits, migrations, and implementation steps so work can resume without repeating completed investigation.
+This file is the persistent project progress log. Update it after every important implementation, validation, architectural decision, or blocker so work never repeats unnecessarily.
 
-## Rules
+## 2026-08-13 — Repository and Phase 0 baseline
 
-- Update this file after every important project step.
-- Record what changed, what was verified, what failed, and what remains unresolved.
-- Do not treat exploratory local changes as accepted project changes unless explicitly recorded as such.
-- Preserve exact commit SHAs, toolchain versions, and important architectural decisions where useful.
-
----
-
-## 2026-08-13 — Phase 0 baseline audit started
-
-### Repository established
-
-- FreshFlag created as an independent GitHub repository rather than a GitHub fork.
-- Original StayFresh Git history preserved.
-- FreshFlag remote model on the development machine:
+- Created independent repository `rpatel2023/FreshFlag` while preserving StayFresh Git history.
+- Development remotes:
   - `origin`: `git@github.com:rpatel2023/FreshFlag.git`
   - `upstream`: `https://github.com/Dhiraj706Sardar/stayfresh.git`
-- Imported upstream/default branch HEAD at audit start: `7431e9323ec448da843a4871ec94a0604557a224` (`modified : Readme.md`).
-- GitHub connector access to `rpatel2023/FreshFlag` confirmed with repository write access.
+- Imported upstream SHA: `7431e9323ec448da843a4871ec94a0604557a224`.
+- Added `UPSTREAM.md` and `docs/BASELINE_AUDIT.md`.
+- Baseline environment: Ubuntu 24.04.4, Flutter 3.47.0 stable, Dart 3.13.0.
+- Linux release build succeeded after installing clang/cmake/ninja/GTK development dependencies.
+- Web build failed because inherited FlutterFire web packages are incompatible with the current Dart/Flutter JS interop APIs.
+- Android build was not tested because Android SDK is not installed.
+- iOS runtime build remains unavailable from Ubuntu.
+- Initial `dart analyze`: 30 issues.
+- Initial upstream test file was empty.
 
-### Static audit findings so far
+### Phase 0 architectural findings
 
-- Project is a Flutter application named `stayfresh` in `pubspec.yaml`.
-- Firebase dependencies and actual initialization are present:
-  - Firebase Core
-  - Firebase Authentication
-  - Cloud Firestore
-  - Firebase Cloud Messaging
-- Supabase is also present and conditionally initialized, including a separate Supabase storage service. This creates mixed backend responsibilities that need architectural cleanup for FreshFlag.
-- Current Firestore inventory ownership is user-scoped under `users/{userId}/groceryItems/{itemId}` rather than household-scoped.
-- `GroceryViewModel` silently signs in anonymously for demo use when no authenticated user exists.
-- If Firestore loading fails, `GroceryViewModel` silently substitutes hard-coded dummy grocery items. This means a visually working app does not prove persistence is working.
-- `GroceryItem.expiryDate` is a `DateTime` serialized as an ISO timestamp. FreshFlag requires date-only expiry semantics (`YYYY-MM-DD`).
-- Notification code exists, but current behavior is primarily client/local notification oriented and will need to be replaced or augmented by household-aware backend push scheduling.
-- Test coverage is effectively absent: `test/widget_test.dart` is empty.
+- Firebase Auth, Firestore, FCM plumbing and camera barcode scanning were real implementations.
+- Supabase was mixed into image/token storage despite Firebase being the intended backend.
+- Inventory was split between Hive and Firestore.
+- Inventory loading silently created anonymous sessions and substituted dummy data after Firestore failures.
+- Firestore document IDs did not match application item IDs.
+- Expiry was timestamp-based instead of date-only.
+- Barcode scanning captured a value but discarded it before Add Item.
+- Notifications were local-device oriented and hard-coded.
+- iOS Firebase configuration was incomplete and camera permission was missing.
+- README materially overstated capabilities.
+- Decision: **retain StayFresh only as scaffolding and establish a trustworthy FreshFlag foundation before household work.**
 
-### Ubuntu runtime baseline
+## 2026-08-14 — Phase 1 stabilization branch
 
-Development machine used for runtime verification:
+Branch: `phase1-stabilization`
 
-- Ubuntu 24.04.4 LTS
-- Flutter 3.47.0 stable
-- Dart 3.13.0
+### Slice 1 — trustworthy Firestore inventory — VALIDATED
 
-Initial Flutter Doctor findings:
+Implemented:
 
-- Flutter installed successfully.
-- Chrome/web target available.
-- Android SDK not installed, so Android build is currently unverified.
-- Linux desktop toolchain was initially missing.
+- Added real `GroceryItem` persistence/serialization tests.
+- Removed automatic anonymous sign-in from inventory loading.
+- Removed silent dummy-data fallback on Firestore failure.
+- Consolidated duplicate `GroceryViewModel` providers.
+- Made Firestore document ID equal to application item ID.
+- Preserved `notes` and `isConsumed` in serialization.
+- Added a temporary remote-first Hive bridge while the inherited UI was being untangled.
 
-Linux build prerequisites installed:
+Validated at code HEAD `6ff74a9047ca5fdde3eaa6fe2e59da44622bb69f`:
 
-- `clang`
-- `cmake`
-- `ninja-build`
-- `g++`
-- `pkg-config`
-- `libgtk-3-dev`
+- `flutter test --no-pub`: **3 passed**.
+- `dart analyze`: **27 issues**, no fatal errors.
+- `flutter build linux --no-pub`: **success**.
+- Working tree clean.
 
-After installation, Flutter Doctor reports the Linux toolchain as available.
+### Slice 2 — one write path + barcode handoff — VALIDATED
 
-### Dependency resolution behavior
+Implemented:
 
-Running `flutter pub get` succeeds, but on the current Flutter/Dart toolchain it modifies dependency resolution substantially:
+- Add Item writes through `GroceryViewModel` rather than directly to Hive.
+- Scanner passes captured barcode to Add Item.
+- Removed anonymous authentication support and stale ViewModel calls.
+- Removed duplicate/unreachable Firebase Auth exception cases.
+- Cached token presence is no longer treated as a valid session.
 
-- 19 dependency entries changed.
-- 114 packages report newer versions incompatible with current constraints.
-- `pubspec.lock` was rewritten, including SDK constraint resolution.
-- Flutter also modified `analysis_options.yaml` to add platform/build-directory analyzer exclusions.
+An initial runtime pass exposed two compile errors; both were corrected before re-validation.
 
-These local modifications are **audit artifacts only** and are not accepted FreshFlag baseline changes at this stage.
+Validated at HEAD `a4b980f6a27a275f10951398c1d6c98af131c89f`:
 
-### Static analysis
+- `flutter test --no-pub`: **3 passed**.
+- `dart analyze`: **19 issues**, no errors.
+- `flutter build linux --no-pub`: **success**.
+- Working tree clean.
 
-`dart analyze` completes with 30 issues:
+### Slice 3 — date-only expiry semantics — VALIDATED
 
-- 9 warnings, including unused fields/imports and unreachable switch cases.
-- Remaining issues are informational/deprecation findings.
-- No analyzer-fatal compile error was observed.
+Implemented:
 
-### Tests
+- New expiry values normalize to calendar dates.
+- Firestore/JSON expiry storage is strict `YYYY-MM-DD`.
+- Legacy full ISO timestamp records remain readable and normalize on load.
+- Firestore expiry queries were subsequently changed to compare date-only strings as well.
+- Expanded persistence tests from 3 to 4 cases.
 
-`flutter test` fails immediately because `test/widget_test.dart` contains no `main()` method.
+Validated at HEAD `7bf7b02c1e3c7a21ba1b03bd00c80062066f0747`:
 
-Conclusion: upstream does not currently provide a functioning automated test baseline.
+- `flutter test --no-pub`: **4 passed**.
+- `dart analyze`: **19 issues**, no errors.
+- `flutter build linux --no-pub`: **success**.
+- Working tree clean.
 
-### Build verification
+### Slice 4 — remove inherited split architecture — VALIDATED
 
-#### Linux
+After Slice 3 validation, further audit of the visible app found that inherited login/signup/dashboard/reminders/settings screens still bypassed the stabilized services. This slice removed those parallel demo paths rather than allowing them to survive into household work.
 
-`flutter build linux` succeeds.
+#### Real Firebase authentication flow
 
-Produced bundle:
+- Replaced inherited fake login flow with `AuthViewModel`/Firebase email-password sign-in.
+- Password reset now uses Firebase Auth.
+- Replaced fake signup/local-user creation with Firebase account creation.
+- `AuthWrapper` now routes directly from the real Firebase auth-state stream.
+- Inventory loads once per authenticated UID and resets on sign-out/account change.
 
-`build/linux/x64/release/bundle/stayfresh`
+Key commits:
 
-This proves the imported application can compile as a Linux Flutter application on the audited toolchain.
+- `335563af115be8926ff0329d6fcd14021a676c6a` — Firebase login.
+- `2159883d3118df32c267f46c665363894459cca2` — Firebase signup.
+- `6d9c6757cc31b1df59eab9d187260a3b9dacd34d` — authenticated inventory lifecycle.
 
-#### Web
+#### One authoritative inventory UI
 
-`flutter build web` fails.
+- Dashboard now reads `GroceryViewModel`/Firestore instead of Hive.
+- Reminders now derive from the same inventory state.
+- Settings shows the Firebase user and supports real Firebase sign-out.
+- Main authenticated shell simplified to Inventory / Reminders / Settings.
+- Obsolete duplicate/local flows deleted: old splash, onboarding, HomeScreen, profile editor, notification-test screen, and inherited client notification sender widget.
 
-Primary failure is incompatibility between the old FlutterFire web packages in the dependency set and the current Dart/Flutter JS interop APIs. Errors include missing `PromiseJsImpl`, `handleThenable`, `dartify`, and `jsify` symbols from `firebase_auth_web` and `firebase_messaging_web`.
+#### Supabase removed from active architecture
 
-This is currently classified as dependency/toolchain incompatibility, not yet as a FreshFlag application-code defect.
+- Add Item no longer exposes inherited Supabase image upload.
+- `GroceryViewModel` no longer imports or uses Supabase storage.
+- App startup no longer initializes Supabase.
+- Supabase storage service deleted.
+- Supabase dependency removed from `pubspec.yaml`.
+- `supabase_setup.sql` and mixed-backend `env_config.dart` deleted.
+- Client constants no longer contain placeholder backend credentials.
+- FCM service no longer stores tokens in Supabase or attempts client-side FCM HTTP sends. Client-side sending is deliberately disabled; backend delivery is reserved for the notification backend phases.
 
-#### Android
+#### Hive removed from inventory/identity
 
-Not yet tested because the Android SDK is not installed.
+- `LocalDatabaseService` reduced to device-local `SharedPreferences` only.
+- Removed all local grocery CRUD/mirroring and local user identity storage.
+- `GroceryItem` is now a plain Dart/Firestore model, not a `HiveObject`.
+- Obsolete grocery/user Hive adapters and local `UserModel` deleted.
+- Hive/build-runner generator dependencies removed.
 
-#### iOS
+#### Firestore and iOS correctness
 
-Not runtime-tested because the current development machine is Ubuntu and cannot run Xcode/iOS builds.
+- Firestore expiry queries now use the same `YYYY-MM-DD` semantics as stored records.
+- Added Phase 1 `firestore.rules`: authenticated users may access only their own `/users/{uid}` namespace and grocery items; all unspecified paths are denied.
+- Added `firebase.json` pointing at the rules file.
+- iOS display name changed to FreshFlag.
+- Added `NSCameraUsageDescription` for barcode scanning and photo-library usage text.
 
-### Current Phase 0 assessment
+#### Package/dependency cleanup
 
-StayFresh is viable as source scaffolding because the Flutter app compiles for Linux and contains real Firebase/Auth/Firestore/FCM implementations. It is **not** a trustworthy production baseline as imported.
+- Dart package renamed from `stayfresh` to `freshflag`.
+- Tests updated to import `package:freshflag/...`.
+- Inherited unused dependencies removed; remaining core dependencies are Firebase, local notifications, scanner, Provider, SharedPreferences and timezone support.
+- README replaced with an accurate FreshFlag status/roadmap instead of inherited claims.
 
-Confirmed problems include:
+Ubuntu validation after dependency cleanup:
 
-- no meaningful automated tests
-- dummy-data fallback that masks persistence failures
-- anonymous demo authentication behavior
-- user-owned instead of household-owned inventory
-- mixed Firebase/Supabase responsibilities
-- timestamp-based expiry representation
-- outdated dependency set with current-toolchain incompatibilities
-- web build failure
-- unverified Android and iOS builds
+- `flutter pub get`: **118 dependency changes**, primarily removals of inherited packages.
+- `flutter test`: **4 passed**.
+- `dart analyze`: **6 info-only deprecation findings**, no warnings/errors.
+- `flutter build linux`: **success**.
 
----
+The six remaining deprecations were subsequently removed from `theme_provider.dart` and `app_theme.dart` before Phase 2 work.
 
-## 2026-08-14 — Phase 0 static audit continued
+## 2026-08-14 — Phase 2 barcode product recognition
 
-### Working tree restored
+### Slice 1 — Open Food Facts lookup — VALIDATED
 
-- Local audit-induced changes to `analysis_options.yaml` and `pubspec.lock` were restored.
-- Ubuntu clone fast-forwarded to changelog commit `6026638f72ac68e735714f09975d0a0455101df7`.
-- Working tree confirmed clean.
+Implemented:
 
-### Upstream provenance documented
+- Added `ProductLookupResult` model.
+- Added `ProductLookupService` using Open Food Facts product API with barcode lookup.
+- Lookup requests use a narrow `fields` selection instead of downloading the entire product payload.
+- Requests include an identifying FreshFlag `User-Agent`.
+- Scanner performs one lookup after a completed barcode capture rather than polling.
+- Recognized products prefill Add Item with product name while preserving the barcode.
+- Unknown barcode, incomplete product data, or network failure falls back to manual Add Item while retaining the scanned barcode.
+- Added parser/recognition tests for successful, unknown, and incomplete product responses.
+- Added `http` as the only new runtime dependency required for the lookup service.
 
-- Added `UPSTREAM.md`.
-- Recorded original StayFresh repository and imported upstream SHA `7431e9323ec448da843a4871ec94a0604557a224`.
-- Recorded that FreshFlag is an independent repository and the upstream remote is retained for provenance/selective reference rather than continuous merging.
+Relevant implementation commits include:
 
-### Barcode audit
+- `d821cad45ee5fc2dd0ff52e78086e949ae179de4` — add product lookup result model.
+- `29a4078901ab1333a3602ce24df497cc113e6bc2` — add Open Food Facts lookup service.
+- `857c1a4251414eb7c6d969c608f4aacade387f7f` — wire recognized product data into Add Item.
+- `4e941edc01c41b188a7bd2281cf7a37581da162f` — integrate lookup into scanner flow.
+- `d526bee7f5c406ff9fa388743ab4f1a0136d03d3` — add Open Food Facts parser tests.
 
-- Barcode camera scanning is real and uses `mobile_scanner`.
-- Manual-entry fallback exists.
-- The scanner only captures/displays the barcode value.
-- Critical gap: `_proceedWithBarcode()` navigates to `AddItemScreen()` with a TODO stating `Pass barcode value`; the scanned barcode is currently discarded.
-- No product lookup is performed from the barcode.
-- Therefore README language claiming add-by-scanning is materially overstated: scanning works as a UI interaction, but it does not currently populate an inventory item or identify a product.
+Ubuntu validation at code HEAD `d526bee7f5c406ff9fa388743ab4f1a0136d03d3`:
 
-### Authentication audit
+- `flutter pub get`: resolved `http 1.6.0`; only one dependency changed relative to the already-cleaned graph.
+- `flutter test`: **7 passed**.
+- `dart analyze`: **No issues found**.
+- `flutter build linux`: **success**.
 
-- Email/password Firebase Auth methods are implemented.
-- Anonymous authentication is implemented and used automatically by grocery loading code for demo behavior.
-- Authentication service stores a Firebase ID token in `SharedPreferences` and considers token presence alone sufficient for `hasValidToken()`; it does not validate expiry/freshness before returning true.
-- Duplicate switch cases exist for `operation-not-allowed` and `requires-recent-login`, matching analyzer unreachable-case warnings.
-- Google Sign-In objects are present, but the audited service does not expose a working Google sign-in flow; current README/auth claims should therefore not be expanded beyond email/password without further implementation verification.
+### Generated dependency metadata pending repository commit
 
-### Notification audit
+Local Flutter resolution intentionally regenerated:
 
-- FCM permission/token plumbing exists.
-- FCM token is only printed/read; no audited code persists device tokens into a backend user/device model.
-- Expiry reminders are scheduled locally on the device using `flutter_local_notifications`.
-- Reminder timing is hard-coded from constants rather than household-configurable rules.
-- Notification tap handlers contain TODOs and do not deep-link to the relevant inventory item.
-- Timezone scheduling uses `tz.local`; no household IANA timezone model exists.
-- Current implementation therefore does not satisfy FreshFlag shared-household/backend reminder requirements.
+- `pubspec.lock`
+- Linux generated plugin registrant files
+- macOS generated plugin registrant
+- Windows generated plugin registrant files
 
-### Firebase configuration audit
+Flutter also rewrote `analysis_options.yaml`; that file is an unrelated tool-generated change and must be restored before committing.
 
-- `lib/firebase_options.dart` exists and was generated by FlutterFire CLI.
-- Android Firebase values point to project `stayfresh-36edf` with concrete Android app ID/API key.
-- Web configuration contains placeholder values such as `your_web_app_id` and `G-MEASUREMENT_ID`.
-- iOS configuration is not usable as committed: `YOUR_IOS_API_KEY` and `your_ios_app_id` placeholders remain.
-- macOS configuration also contains placeholders.
-- Linux and Windows are explicitly unsupported by `DefaultFirebaseOptions.currentPlatform` even though the Flutter project contains desktop targets.
-- This explains why a successful Linux compilation does not prove Firebase runtime functionality on Linux.
-
-### iOS static audit
-
-- iOS Flutter/Xcode project structure is present.
-- App branding is still `Stayfresh` / `stayfresh`.
-- iOS Firebase options still use bundle ID `com.example.stayfresh` and placeholder credentials.
-- `ios/Runner/Info.plist` does not contain an `NSCameraUsageDescription`, despite barcode scanning requiring camera access.
-- No `GoogleService-Info.plist` was observed under `ios/Runner` during the audited directory listing.
-- iOS therefore cannot be considered configured for a usable Firebase + barcode build even before Xcode/signing verification.
-
-### README versus code
-
-Confirmed README mismatches include:
-
-- README says barcode scanning can add grocery items; code does not pass scanned barcode into Add Item.
-- README lists `flutter_barcode_scanner`, while actual dependency/code uses `mobile_scanner`.
-- README claims offline support/local data with cloud sync; current grocery loading path primarily reads Firestore and falls back to dummy data on failure. A genuine offline-sync workflow has not been demonstrated.
-- README describes Firebase configuration as being handled through platform files/environment, but committed iOS/web Firebase options contain placeholders.
-- README describes a `GroceryItem` model containing fields such as `purchaseDate`, `isManualEntry`, and `userId`; the actual model differs substantially.
-- README expiry status says expiring soon is 2 days or less, while the model currently defines expiring soon as 3 days or less.
-
-### Updated Phase 0 direction
-
-No further Linux commands are needed to establish basic source viability. The major remaining platform gap is iOS, which cannot be meaningfully runtime-verified from Ubuntu. Android verification is optional for Phase 0 because FreshFlag's primary target is iPhone/TestFlight and Linux already proves the Dart/native project compiles.
-
----
-
-## 2026-08-14 — Phase 0 completed
-
-### Baseline audit published
-
-- Added `docs/BASELINE_AUDIT.md`.
-- Consolidated runtime, static, architecture, README-accuracy, iOS, Firebase, barcode, notification, auth, Firestore, and testing findings.
-- Classified each major subsystem as working, partial, misleading, missing, blocked, or unverified.
-
-### Phase 0 decision
-
-**Decision: continue with StayFresh as scaffolding.**
-
-Reasoning:
-
-- The Flutter app compiles successfully for Linux.
-- Firebase Auth, Firestore, FCM plumbing, and barcode camera scanning are real implementations rather than pure mocks.
-- The current deficiencies are understood and tractable.
-- Replacing the entire base with another project is not justified by the audit evidence.
-
-However, FreshFlag must not layer household features onto the current demo behavior. Phase 1 must first establish a trustworthy single-user foundation.
-
-### Important Phase 1 priorities established
-
-1. Establish a supported/reproducible Flutter dependency baseline.
-2. Add real automated tests before changing persistence behavior.
-3. Remove anonymous automatic sign-in and silent dummy-data fallback.
-4. Fix Firestore document/local item ID consistency.
-5. Make authenticated single-user Firestore inventory trustworthy.
-6. Convert expiry handling to date-only semantics.
-7. Remove Supabase from the core architecture unless a concrete requirement justifies it.
-8. Create/configure a FreshFlag Firebase project and proper iOS app configuration.
-9. Add required iOS permissions, including camera usage description.
-10. Defer household collaboration until these foundations are stable.
-
-### Deferred verification
-
-- Actual iOS build/signing/TestFlight verification remains deferred until a macOS/Xcode environment is available.
-- Android compile remains optional/deferred because it is not the primary MVP platform.
+The exact generated lockfile/plugin metadata exists only in the Ubuntu working tree and must be committed/pushed from that machine before further dependency-changing work is layered on top.
