@@ -91,9 +91,9 @@ Validated at HEAD `7bf7b02c1e3c7a21ba1b03bd00c80062066f0747`:
 - `flutter build linux --no-pub`: **success**.
 - Working tree clean.
 
-### Slice 4 — remove inherited split architecture — AWAITING RUNTIME VALIDATION
+### Slice 4 — remove inherited split architecture — VALIDATED
 
-After Slice 3 validation, further audit of the visible app found that the inherited login/signup/dashboard/reminders/settings screens still bypassed the newly stabilized services. This slice removes those parallel demo paths rather than allowing them to survive into household work.
+After Slice 3 validation, further audit of the visible app found that inherited login/signup/dashboard/reminders/settings screens still bypassed the stabilized services. This slice removed those parallel demo paths rather than allowing them to survive into household work.
 
 #### Real Firebase authentication flow
 
@@ -148,9 +148,58 @@ Key commits:
 
 - Dart package renamed from `stayfresh` to `freshflag`.
 - Tests updated to import `package:freshflag/...`.
-- Inherited unused dependencies removed; the remaining core dependency set is Firebase, local notifications, scanner, Provider, SharedPreferences and timezone support.
+- Inherited unused dependencies removed; remaining core dependencies are Firebase, local notifications, scanner, Provider, SharedPreferences and timezone support.
 - README replaced with an accurate FreshFlag status/roadmap instead of inherited claims.
 
-Important constraint now reached:
+Ubuntu validation after dependency cleanup:
 
-`pubspec.yaml` changed materially, including package rename and dependency removals. The existing `pubspec.lock` is intentionally stale until Flutter resolves the new graph locally. A local `flutter pub get` plus tests/analyzer/Linux compile is required before any further feature work is layered on this slice.
+- `flutter pub get`: **118 dependency changes**, primarily removals of inherited packages.
+- `flutter test`: **4 passed**.
+- `dart analyze`: **6 info-only deprecation findings**, no warnings/errors.
+- `flutter build linux`: **success**.
+
+The six remaining deprecations were subsequently removed from `theme_provider.dart` and `app_theme.dart` before Phase 2 work.
+
+## 2026-08-14 — Phase 2 barcode product recognition
+
+### Slice 1 — Open Food Facts lookup — VALIDATED
+
+Implemented:
+
+- Added `ProductLookupResult` model.
+- Added `ProductLookupService` using Open Food Facts product API with barcode lookup.
+- Lookup requests use a narrow `fields` selection instead of downloading the entire product payload.
+- Requests include an identifying FreshFlag `User-Agent`.
+- Scanner performs one lookup after a completed barcode capture rather than polling.
+- Recognized products prefill Add Item with product name while preserving the barcode.
+- Unknown barcode, incomplete product data, or network failure falls back to manual Add Item while retaining the scanned barcode.
+- Added parser/recognition tests for successful, unknown, and incomplete product responses.
+- Added `http` as the only new runtime dependency required for the lookup service.
+
+Relevant implementation commits include:
+
+- `d821cad45ee5fc2dd0ff52e78086e949ae179de4` — add product lookup result model.
+- `29a4078901ab1333a3602ce24df497cc113e6bc2` — add Open Food Facts lookup service.
+- `857c1a4251414eb7c6d969c608f4aacade387f7f` — wire recognized product data into Add Item.
+- `4e941edc01c41b188a7bd2281cf7a37581da162f` — integrate lookup into scanner flow.
+- `d526bee7f5c406ff9fa388743ab4f1a0136d03d3` — add Open Food Facts parser tests.
+
+Ubuntu validation at code HEAD `d526bee7f5c406ff9fa388743ab4f1a0136d03d3`:
+
+- `flutter pub get`: resolved `http 1.6.0`; only one dependency changed relative to the already-cleaned graph.
+- `flutter test`: **7 passed**.
+- `dart analyze`: **No issues found**.
+- `flutter build linux`: **success**.
+
+### Generated dependency metadata pending repository commit
+
+Local Flutter resolution intentionally regenerated:
+
+- `pubspec.lock`
+- Linux generated plugin registrant files
+- macOS generated plugin registrant
+- Windows generated plugin registrant files
+
+Flutter also rewrote `analysis_options.yaml`; that file is an unrelated tool-generated change and must be restored before committing.
+
+The exact generated lockfile/plugin metadata exists only in the Ubuntu working tree and must be committed/pushed from that machine before further dependency-changing work is layered on top.
