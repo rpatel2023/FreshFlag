@@ -57,6 +57,34 @@ class HouseholdViewModel extends ChangeNotifier {
     }
   }
 
+  Future<void> updateCurrentHousehold({
+    required String name,
+    required String timezone,
+  }) async {
+    final current = _current;
+    if (current == null) throw StateError('No household selected');
+    _setLoading(true);
+    _error = null;
+    try {
+      final updated = await _service.updateHousehold(
+        current.id,
+        name: name,
+        timezone: timezone,
+      );
+      _current = updated;
+      _households = _households
+          .map((household) => household.id == updated.id ? updated : household)
+          .toList();
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to update household: $e';
+      notifyListeners();
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<Household> joinHousehold(String inviteCode) async {
     _setLoading(true);
     _error = null;
