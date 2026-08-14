@@ -176,5 +176,33 @@ Branch: `phase8-testflight-prep`.
 - Generated `pubspec.lock`, macOS plugin registrant, Xcode bundle IDs and icon assets were committed/pushed as `4a46ea3`.
 - Ubuntu working tree was clean after that commit.
 - Added `docs/PHASE8_SOURCE_VALIDATION.md` as the durable source-validation record and explicit list of remaining external Firebase/macOS/Apple gates.
+- PR #8 triggered exactly one Flutter CI run (`31825161104`); lockfile reproducibility, tests, analyzer, and Linux release build all passed.
+- PR #8 merged to `main` as `2f63b10cd4d03f5c7d11276e731753fe5014bc18`.
 
-Current checkpoint: Phase 8 source prep is validated on Ubuntu. Remaining work is the real FreshFlag Firebase project configuration/deployment and macOS/Xcode/Apple-signing/TestFlight validation. Open one coherent Phase 8 PR and use one Flutter CI validation cycle; do not manually trigger extra workflows.
+Result: Phase 8 source prep is integrated. Remaining external work is FreshFlag Firebase project configuration/deployment and iOS build/signing/sideload validation.
+
+## 2026-08-14 — Discord household reminder channel — IN PROGRESS
+
+Branch: `feature/discord-reminders`.
+
+### Distribution decision
+
+- Private-household distribution target is SideStore/free Apple Account first rather than paying the Apple Developer Program annual fee solely for two-person use.
+- Ubuntu remains the source machine; Windows may be used for the initial SideStore/iPhone bootstrap; a manually-invoked macOS CI builder can later create the unsigned iOS artifact when required.
+- Native FCM/APNs remains supported where available, but reminder reliability must not depend on APNs being available under free sideload signing.
+- Discord is therefore implemented as a parallel household reminder delivery channel, not merely as a response to an FCM API failure. An FCM send acknowledgement does not prove that a sideloaded iPhone displayed the notification.
+
+### Backend Discord milestone
+
+- Selected Discord incoming webhooks instead of a persistent bot. One webhook maps a FreshFlag household to a shared Discord channel.
+- Added `functions/src/discord_delivery.ts` with strict HTTPS Discord-host/path validation, deterministic Discord delivery IDs, structured embed payloads, and outbound webhook POST support.
+- Discord payloads set `allowed_mentions.parse` to an empty list so user-derived item/template text cannot trigger `@everyone`, role, or user mentions.
+- Discord reminders are emitted once per household/item/rule/expiry event rather than once per household member, preventing duplicates in the shared channel.
+- Discord has its own idempotent `notificationDeliveries` claim while FCM keeps its per-recipient delivery IDs; both reuse the existing 15-minute claim/retry mechanism.
+- Added callable backend endpoints for integration status, owner-only save/enable/disable, and owner-only test delivery. Webhook URLs are never returned to the Flutter client.
+- Stored Discord secrets at backend-only `householdIntegrations/{householdId}` documents.
+- Firestore rules explicitly deny all client reads/writes of `householdIntegrations`, including the household owner. Owners manage the secret only through authenticated callable functions.
+- Added Discord helper unit tests and a Firestore Emulator security assertion that the integration secret remains inaccessible to clients.
+- Updated Functions test discovery to execute all compiled `*.test.js` files.
+
+No PR has been opened for this branch and no Discord-feature CI has been triggered yet. Next: add the Flutter Settings UI and callable client service, then perform one dependency-resolution/runtime checkpoint before opening a single coherent PR.
