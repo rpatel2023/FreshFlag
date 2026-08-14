@@ -1,7 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
@@ -41,7 +40,7 @@ Future<void> _initializeApp() async {
   try {
     await LocalDatabaseService.initialize();
   } catch (e) {
-    debugPrint('Local settings/cache initialization failed: $e');
+    debugPrint('Local preference initialization failed: $e');
   }
 
   try {
@@ -54,12 +53,6 @@ Future<void> _initializeApp() async {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   } catch (e) {
     debugPrint('FCM background handler setup failed: $e');
-  }
-
-  try {
-    await dotenv.load(fileName: '.env');
-  } catch (_) {
-    debugPrint('No .env file found; optional environment configuration skipped.');
   }
 
   try {
