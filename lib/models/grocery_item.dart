@@ -2,7 +2,11 @@ import 'package:hive/hive.dart';
 
 part 'grocery_item.g.dart';
 
-/// Model representing a grocery item in the StayFresh app.
+/// Model representing a grocery item in FreshFlag.
+///
+/// Expiry is a calendar date, not a moment in time. The public field remains a
+/// [DateTime] for compatibility with the inherited UI/Hive adapter, but it is
+/// normalized to local midnight and serialized as `YYYY-MM-DD`.
 @HiveType(typeId: 1)
 class GroceryItem extends HiveObject {
   @HiveField(0)
@@ -42,11 +46,11 @@ class GroceryItem extends HiveObject {
     required this.category,
     this.barcode,
     required this.addedDate,
-    required this.expiryDate,
+    required DateTime expiryDate,
     this.imageUrl,
     this.notes,
     this.isConsumed = false,
-  });
+  }) : expiryDate = _dateOnly(expiryDate);
 
   Map<String, dynamic> toMap() {
     return {
@@ -56,7 +60,7 @@ class GroceryItem extends HiveObject {
       'category': category,
       'barcode': barcode,
       'addedDate': addedDate.toIso8601String(),
-      'expiryDate': expiryDate.toIso8601String(),
+      'expiryDate': _formatDateOnly(expiryDate),
       'imageUrl': imageUrl,
       'notes': notes,
       'isConsumed': isConsumed,
@@ -71,6 +75,8 @@ class GroceryItem extends HiveObject {
       category: map['category'] as String,
       barcode: map['barcode'] as String?,
       addedDate: DateTime.parse(map['addedDate'] as String),
+      // DateTime.parse also accepts inherited full ISO timestamp records. The
+      // constructor normalizes both old and new representations to a date.
       expiryDate: DateTime.parse(map['expiryDate'] as String),
       imageUrl: map['imageUrl'] as String?,
       notes: map['notes'] as String?,
@@ -111,9 +117,8 @@ class GroceryItem extends HiveObject {
 
   int get daysUntilExpiry {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final expiryDay = DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
-    return expiryDay.difference(today).inDays;
+    final today = _dateOnly(now);
+    return expiryDate.difference(today).inDays;
   }
 
   bool get isExpired => daysUntilExpiry < 0;
@@ -124,6 +129,16 @@ class GroceryItem extends HiveObject {
     if (isExpired) return ExpiryStatus.expired;
     if (isExpiringSoon) return ExpiryStatus.expiringSoon;
     return ExpiryStatus.fresh;
+  }
+
+  static DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  static String _formatDateOnly(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 
   @override
