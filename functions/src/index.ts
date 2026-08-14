@@ -140,7 +140,10 @@ async function deliverToRecipient(args: {
 }): Promise<void> {
   const userRef = db.collection('users').doc(args.recipientUid);
   const userDoc = await userRef.get();
-  if (userDoc.data()?.notificationsEnabled === false) return;
+
+  // No explicit opt-in means no push. The client mirrors actual OS
+  // notification authorization into this field after authentication.
+  if (userDoc.data()?.notificationsEnabled !== true) return;
 
   const devices = await activeDeviceRegistrations(userRef, args.nowUtc);
   if (devices.length === 0) return;
@@ -171,7 +174,7 @@ async function deliverToRecipient(args: {
       tokens,
       notification: {title, body},
       data: {
-        type: 'expiry_reminder',
+        type: 'expiry',
         householdId: args.householdId,
         itemId: args.itemId,
         ruleId: args.ruleId,
