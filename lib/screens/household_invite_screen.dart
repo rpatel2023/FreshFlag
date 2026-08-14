@@ -32,7 +32,6 @@ class _HouseholdInviteScreenState extends State<HouseholdInviteScreen> {
     final current = household.current;
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Household sharing')),
       body: ListView(
         padding: const EdgeInsets.all(AppTheme.spacingL),
@@ -143,7 +142,7 @@ class _HouseholdInviteScreenState extends State<HouseholdInviteScreen> {
             Text(
               _error!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.errorRed),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],
         ],
