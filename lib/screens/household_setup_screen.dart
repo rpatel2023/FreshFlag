@@ -31,7 +31,6 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
   Widget build(BuildContext context) {
     final household = context.watch<HouseholdViewModel>();
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Set up FreshFlag')),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -39,10 +38,10 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(
+              Icon(
                 Icons.home_outlined,
                 size: 72,
-                color: AppTheme.primaryGreen,
+                color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(height: AppTheme.spacingL),
               const Text(
@@ -150,7 +149,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                 Text(
                   household.error!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppTheme.errorRed),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],
               if (household.isLoading) ...[
