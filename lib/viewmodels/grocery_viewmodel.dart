@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/grocery_item.dart';
@@ -5,13 +7,14 @@ import '../services/firebase_auth_service.dart';
 import '../services/firebase_firestore_service.dart';
 import '../services/notification_service.dart';
 
-/// Authoritative inventory state for the currently selected household.
+/// Authoritative real-time inventory state for the selected household.
 class GroceryViewModel extends ChangeNotifier {
   List<GroceryItem> _items = [];
   bool _isLoading = false;
   bool _isUploading = false;
   String? _error;
   String? _householdId;
+  StreamSubscription<List<GroceryItem>>? _inventorySubscription;
 
   final FirebaseFirestoreService _firestore = FirebaseFirestoreService.instance;
   final FirebaseAuthService _auth = FirebaseAuthService.instance;
@@ -36,30 +39,38 @@ class GroceryViewModel extends ChangeNotifier {
       .toList();
 
   Future<void> bindHousehold(String householdId) async {
-    if (_householdId == householdId) return;
+    if (_householdId == householdId && _inventorySubscription != null) return;
+    await _inventorySubscription?.cancel();
     _householdId = householdId;
     _firestore.setHousehold(householdId);
-    await loadItems();
+    _items = [];
+    _error = null;
+    _setLoading(true);
+
+    _inventorySubscription = _firestore.streamGroceryItems().listen(
+      (items) {
+        _items = items;
+        _sortItems();
+        _error = null;
+        _isLoading = false;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        _items = [];
+        _isLoading = false;
+        _error = 'Failed to stream inventory: $error';
+        notifyListeners();
+      },
+    );
   }
 
   Future<void> loadItems() async {
-    if (!_auth.isSignedIn || _householdId == null) {
-      reset();
+    final householdId = _householdId;
+    if (!_auth.isSignedIn || householdId == null) {
+      await reset();
       return;
     }
-
-    _setLoading(true);
-    _clearError();
-    try {
-      _items = await _firestore.getAllGroceryItems();
-      _sortItems();
-      notifyListeners();
-    } catch (e) {
-      _items = [];
-      _setError('Failed to load inventory: $e');
-    } finally {
-      _setLoading(false);
-    }
+    await bindHousehold(householdId);
   }
 
   Future<void> addItem(GroceryItem item) async {
@@ -77,10 +88,6 @@ class GroceryViewModel extends ChangeNotifier {
     _clearError();
     try {
       await _firestore.addGroceryItem(persisted);
-      _items.removeWhere((existing) => existing.id == persisted.id);
-      _items.add(persisted);
-      _sortItems();
-      notifyListeners();
       await _notifications.scheduleExpiryNotification(persisted);
     } catch (e) {
       _setError('Failed to save item: $e');
@@ -103,14 +110,6 @@ class GroceryViewModel extends ChangeNotifier {
     _clearError();
     try {
       await _firestore.updateGroceryItem(persisted);
-      final index = _items.indexWhere((existing) => existing.id == persisted.id);
-      if (index == -1) {
-        _items.add(persisted);
-      } else {
-        _items[index] = persisted;
-      }
-      _sortItems();
-      notifyListeners();
     } catch (e) {
       _setError('Failed to update item: $e');
       rethrow;
@@ -125,8 +124,6 @@ class GroceryViewModel extends ChangeNotifier {
     try {
       await _firestore.deleteGroceryItem(itemId);
       await _notifications.cancelExpiryNotifications(itemId);
-      _items.removeWhere((item) => item.id == itemId);
-      notifyListeners();
     } catch (e) {
       _setError('Failed to delete item: $e');
       rethrow;
@@ -151,7 +148,9 @@ class GroceryViewModel extends ChangeNotifier {
 
   void clearError() => _clearError();
 
-  void reset() {
+  Future<void> reset() async {
+    await _inventorySubscription?.cancel();
+    _inventorySubscription = null;
     _householdId = null;
     _firestore.setHousehold(null);
     _items = [];
@@ -187,5 +186,11 @@ class GroceryViewModel extends ChangeNotifier {
     if (_error == null) return;
     _error = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _inventorySubscription?.cancel();
+    super.dispose();
   }
 }
