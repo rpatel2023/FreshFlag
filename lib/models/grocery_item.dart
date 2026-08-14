@@ -12,6 +12,7 @@ class GroceryItem {
     this.barcode,
     required this.addedDate,
     required DateTime expiryDate,
+    this.location,
     this.imageUrl,
     this.notes,
     this.isConsumed = false,
@@ -28,6 +29,7 @@ class GroceryItem {
   final String? barcode;
   final DateTime addedDate;
   final DateTime expiryDate;
+  final String? location;
   final String? imageUrl;
   final String? notes;
   final bool isConsumed;
@@ -44,6 +46,7 @@ class GroceryItem {
         'barcode': barcode,
         'addedDate': addedDate.toIso8601String(),
         'expiryDate': formatDateOnly(expiryDate),
+        'location': location,
         'imageUrl': imageUrl,
         'notes': notes,
         'isConsumed': isConsumed,
@@ -61,6 +64,7 @@ class GroceryItem {
         barcode: map['barcode'] as String?,
         addedDate: DateTime.parse(map['addedDate'] as String),
         expiryDate: parseDateOnly(map['expiryDate'] as String),
+        location: map['location'] as String?,
         imageUrl: map['imageUrl'] as String?,
         notes: map['notes'] as String?,
         isConsumed: map['isConsumed'] as bool? ?? false,
@@ -73,7 +77,8 @@ class GroceryItem {
       );
 
   Map<String, dynamic> toJson() => toMap();
-  factory GroceryItem.fromJson(Map<String, dynamic> json) => GroceryItem.fromMap(json);
+  factory GroceryItem.fromJson(Map<String, dynamic> json) =>
+      GroceryItem.fromMap(json);
 
   GroceryItem copyWith({
     String? id,
@@ -83,6 +88,7 @@ class GroceryItem {
     String? barcode,
     DateTime? addedDate,
     DateTime? expiryDate,
+    String? location,
     String? imageUrl,
     String? notes,
     bool? isConsumed,
@@ -98,6 +104,7 @@ class GroceryItem {
         barcode: barcode ?? this.barcode,
         addedDate: addedDate ?? this.addedDate,
         expiryDate: expiryDate ?? this.expiryDate,
+        location: location ?? this.location,
         imageUrl: imageUrl ?? this.imageUrl,
         notes: notes ?? this.notes,
         isConsumed: isConsumed ?? this.isConsumed,
@@ -120,8 +127,10 @@ class GroceryItem {
           ? ExpiryStatus.expiringSoon
           : ExpiryStatus.fresh;
 
-  static DateTime normalizeDateOnly(DateTime value) => DateTime(value.year, value.month, value.day);
-  static DateTime parseDateOnly(String value) => normalizeDateOnly(DateTime.parse(value));
+  static DateTime normalizeDateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+  static DateTime parseDateOnly(String value) =>
+      normalizeDateOnly(DateTime.parse(value));
   static String formatDateOnly(DateTime value) {
     final date = normalizeDateOnly(value);
     final month = date.month.toString().padLeft(2, '0');
@@ -130,7 +139,8 @@ class GroceryItem {
   }
 
   @override
-  bool operator ==(Object other) => identical(this, other) ||
+  bool operator ==(Object other) =>
+      identical(this, other) ||
       other is GroceryItem &&
           other.id == id &&
           other.name == name &&
@@ -139,6 +149,7 @@ class GroceryItem {
           other.barcode == barcode &&
           other.addedDate == addedDate &&
           other.expiryDate == expiryDate &&
+          other.location == location &&
           other.imageUrl == imageUrl &&
           other.notes == notes &&
           other.isConsumed == isConsumed &&
@@ -149,8 +160,21 @@ class GroceryItem {
 
   @override
   int get hashCode => Object.hash(
-        id, name, quantity, category, barcode, addedDate, expiryDate, imageUrl,
-        notes, isConsumed, householdId, createdByUid, updatedByUid, updatedAt,
+        id,
+        name,
+        quantity,
+        category,
+        barcode,
+        addedDate,
+        expiryDate,
+        location,
+        imageUrl,
+        notes,
+        isConsumed,
+        householdId,
+        createdByUid,
+        updatedByUid,
+        updatedAt,
       );
 }
 
