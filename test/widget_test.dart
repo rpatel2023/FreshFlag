@@ -19,6 +19,7 @@ void main() {
         expiryDate: DateTime(2026, 8, 20),
         imageUrl: 'https://example.test/milk.jpg',
         notes: 'Use first',
+        location: 'Fridge',
         isConsumed: true,
         householdId: 'house-1',
         createdByUid: 'owner-1',
@@ -32,6 +33,7 @@ void main() {
       expect(map['expiryDate'], '2026-08-20');
       expect(restored, item);
       expect(restored.notes, 'Use first');
+      expect(restored.location, 'Fridge');
       expect(restored.isConsumed, isTrue);
       expect(restored.barcode, '0123456789012');
       expect(restored.householdId, 'house-1');
@@ -55,6 +57,7 @@ void main() {
       expect(restored.expiryDate, DateTime(2026, 8, 17));
       expect(restored.toMap()['expiryDate'], '2026-08-17');
       expect(restored.notes, isNull);
+      expect(restored.location, isNull);
       expect(restored.isConsumed, isFalse);
       expect(restored.householdId, isNull);
       expect(restored.createdByUid, isNull);
