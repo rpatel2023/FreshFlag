@@ -51,8 +51,26 @@ service cloud.firestore {
         validInvite(request.resource.data.lastJoinInviteId, householdId);
     }
 
+    function validReminderRule(data) {
+      return data.daysBefore is int &&
+        data.daysBefore >= 0 &&
+        data.daysBefore <= 365 &&
+        data.titleTemplate is string &&
+        data.titleTemplate.size() > 0 &&
+        data.bodyTemplate is string &&
+        data.bodyTemplate.size() > 0 &&
+        data.sendTime is string &&
+        data.sendTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+        data.enabled is bool;
+    }
+
     match /users/{uid} {
       allow read, create, update, delete: if isSelf(uid);
+
+      match /devices/{deviceId} {
+        allow read, create, update, delete: if isSelf(uid) &&
+          request.resource.data.deviceId == deviceId;
+      }
     }
 
     match /households/{householdId} {
@@ -106,11 +124,16 @@ service cloud.firestore {
 
         allow delete: if isHouseholdMember(householdId);
       }
+
+      match /notificationRules/{ruleId} {
+        allow read: if isHouseholdMember(householdId);
+        allow create, update: if isHouseholdOwner(householdId) &&
+          validReminderRule(request.resource.data);
+        allow delete: if isHouseholdOwner(householdId);
+      }
     }
 
     match /invites/{inviteId} {
-      // Invite IDs are high-entropy share codes. Signed-in users may only fetch
-      // a code they already possess; collection enumeration is denied.
       allow get: if signedIn() &&
         resource.data.status == 'active' &&
         request.time < resource.data.expiresAt;
@@ -123,6 +146,11 @@ service cloud.firestore {
         request.resource.data.expiresAt > request.time;
 
       allow update, delete: if isHouseholdOwner(resource.data.householdId);
+    }
+
+    // Backend-only delivery ledger. Admin SDK bypasses client security rules.
+    match /notificationDeliveries/{deliveryId} {
+      allow read, write: if false;
     }
 
     match /{document=**} {
