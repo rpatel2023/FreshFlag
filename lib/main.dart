@@ -8,7 +8,6 @@ import 'screens/auth/auth_wrapper.dart';
 import 'services/fcm_service.dart';
 import 'services/firebase_auth_service.dart';
 import 'services/local_database_service.dart';
-import 'services/notification_service.dart';
 import 'theme/theme_provider.dart';
 import 'viewmodels/auth_viewmodel.dart';
 import 'viewmodels/grocery_viewmodel.dart';
@@ -60,12 +59,6 @@ Future<void> _initializeApp() async {
     await FCMService.instance.initialize();
   } catch (e) {
     debugPrint('FCM service initialization failed: $e');
-  }
-
-  try {
-    await NotificationService.instance.initialize();
-  } catch (e) {
-    debugPrint('Notification service initialization failed: $e');
   }
 
   runApp(const FreshFlagApp());
