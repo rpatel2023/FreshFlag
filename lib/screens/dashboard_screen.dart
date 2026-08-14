@@ -41,7 +41,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }).toList();
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(
         title: const Text('FreshFlag'),
         actions: [
@@ -204,7 +203,7 @@ class _QuickAction extends StatelessWidget {
           padding: const EdgeInsets.all(AppTheme.spacingL),
           child: Column(
             children: [
-              Icon(icon, size: 32, color: AppTheme.primaryGreen),
+              Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: AppTheme.spacingS),
               Text(label, textAlign: TextAlign.center),
             ],
@@ -285,13 +284,17 @@ class _InventoryCard extends StatelessWidget {
         : days == 0
             ? 'Expires today'
             : 'Expires in $days day${days == 1 ? '' : 's'}';
+    final scheme = Theme.of(context).colorScheme;
 
     return Card(
       child: ListTile(
         onTap: onTap,
         leading: CircleAvatar(
-          backgroundColor: AppTheme.lightGreen,
-          child: const Icon(Icons.inventory_2_outlined),
+          backgroundColor: scheme.primaryContainer,
+          child: Icon(
+            Icons.inventory_2_outlined,
+            color: scheme.onPrimaryContainer,
+          ),
         ),
         title: Text(item.name),
         subtitle: Text(
