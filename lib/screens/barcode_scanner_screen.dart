@@ -6,8 +6,8 @@ import '../services/product_lookup_service.dart';
 import '../utils/app_theme.dart';
 import 'add_item_screen.dart';
 
-/// Scans a packaged-food barcode, recognizes it through Open Food Facts, and
-/// hands the barcode plus any recognized display name to Add Item.
+/// Scans a packaged-food barcode, recognizes it through the FreshFlag product
+/// lookup/cache path, and hands recognized display metadata to Add Item.
 class BarcodeScannerScreen extends StatefulWidget {
   const BarcodeScannerScreen({super.key});
 
@@ -162,8 +162,15 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               Text(
                 product == null ? 'Barcode scanned' : product.name,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
+              if (product?.brand != null) ...[
+                const SizedBox(height: AppTheme.spacingXS),
+                Text(product!.brand!),
+              ],
               if (product?.quantityLabel != null) ...[
                 const SizedBox(height: AppTheme.spacingXS),
                 Text(product!.quantityLabel!),
@@ -191,7 +198,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context, _ScanAction.add),
-                      child: Text(product == null ? 'Enter manually' : 'Set expiry'),
+                      child: Text(
+                        product == null ? 'Enter manually' : 'Set expiry',
+                      ),
                     ),
                   ),
                 ],
@@ -210,6 +219,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           builder: (_) => AddItemScreen(
             initialBarcode: scannedValue,
             initialName: product?.name,
+            initialBrand: product?.brand,
+            initialImageUrl: product?.imageUrl,
           ),
         ),
       );
