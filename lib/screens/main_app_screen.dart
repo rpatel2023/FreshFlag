@@ -42,14 +42,16 @@ class _MainAppScreenState extends State<MainAppScreen> {
         // pending slot prevents the same target being replayed if the shell is
         // rebuilt, without replacing this event with a newer queued target.
         FCMService.instance.takePendingNavigationTarget();
-        _openNotificationTarget(target);
+        unawaited(_openNotificationTarget(target));
       },
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final pending = FCMService.instance.takePendingNavigationTarget();
-      if (pending != null) _openNotificationTarget(pending);
+      if (pending != null) {
+        unawaited(_openNotificationTarget(pending));
+      }
     });
   }
 
@@ -141,7 +143,7 @@ class _MainAppScreenState extends State<MainAppScreen> {
       final queued = _queuedTarget;
       _queuedTarget = null;
       if (mounted && queued != null) {
-        Future<void>.microtask(() => _openNotificationTarget(queued));
+        unawaited(_openNotificationTarget(queued));
       }
     }
   }
