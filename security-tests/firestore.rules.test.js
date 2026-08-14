@@ -133,7 +133,6 @@ test('a valid invite allows exactly the signed-in user to join without a pre-rea
   const memberRef = doc(db, 'households', 'house-1', 'members', joiningUid);
   const userRef = doc(db, 'users', joiningUid);
 
-  // Household remains private until membership exists.
   await assertFails(getDoc(householdRef));
 
   const batch = writeBatch(db);
@@ -216,4 +215,22 @@ test('notification delivery ledger is inaccessible to clients', async () => {
     status: 'sent',
   }));
   await assertFails(getDoc(doc(user, 'notificationDeliveries', 'delivery-1')));
+});
+
+test('household integration secrets are inaccessible even to the owner', async () => {
+  await seedHousehold();
+  await seed(async (db) => {
+    await setDoc(doc(db, 'householdIntegrations', 'house-1'), {
+      type: 'discord',
+      enabled: true,
+      webhookUrl: 'https://discord.com/api/webhooks/123/token',
+    });
+  });
+
+  const owner = env.authenticatedContext('owner-1').firestore();
+  await assertFails(getDoc(doc(owner, 'householdIntegrations', 'house-1')));
+  await assertFails(setDoc(doc(owner, 'householdIntegrations', 'house-1'), {
+    type: 'discord',
+    enabled: false,
+  }));
 });
