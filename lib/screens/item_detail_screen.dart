@@ -20,9 +20,9 @@ class ItemDetailScreen extends StatelessWidget {
     final inventory = context.watch<GroceryViewModel>();
     final liveItem = inventory.getItemById(itemId);
     final item = liveItem ?? (inventory.isLoading ? initialItem : null);
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppTheme.offWhite,
       appBar: AppBar(title: const Text('Item details')),
       body: item == null
           ? const _UnavailableItem()
@@ -40,8 +40,11 @@ class ItemDetailScreen extends StatelessWidget {
                           children: [
                             CircleAvatar(
                               radius: 26,
-                              backgroundColor: AppTheme.lightGreen,
-                              child: const Icon(Icons.inventory_2_outlined),
+                              backgroundColor: scheme.primaryContainer,
+                              child: Icon(
+                                Icons.inventory_2_outlined,
+                                color: scheme.onPrimaryContainer,
+                              ),
                             ),
                             const SizedBox(width: AppTheme.spacingM),
                             Expanded(
