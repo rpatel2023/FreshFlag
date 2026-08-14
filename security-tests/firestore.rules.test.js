@@ -217,20 +217,22 @@ test('notification delivery ledger is inaccessible to clients', async () => {
   await assertFails(getDoc(doc(user, 'notificationDeliveries', 'delivery-1')));
 });
 
-test('household integration secrets are inaccessible even to the owner', async () => {
-  await seedHousehold();
+test('per-user integration secrets are inaccessible even to their owner', async () => {
   await seed(async (db) => {
-    await setDoc(doc(db, 'householdIntegrations', 'house-1'), {
+    await setDoc(doc(db, 'userIntegrations', 'alice'), {
       type: 'discord',
+      uid: 'alice',
       enabled: true,
       webhookUrl: 'https://discord.com/api/webhooks/123/token',
     });
   });
 
-  const owner = env.authenticatedContext('owner-1').firestore();
-  await assertFails(getDoc(doc(owner, 'householdIntegrations', 'house-1')));
-  await assertFails(setDoc(doc(owner, 'householdIntegrations', 'house-1'), {
+  const alice = env.authenticatedContext('alice').firestore();
+  await assertFails(getDoc(doc(alice, 'userIntegrations', 'alice')));
+  await assertFails(setDoc(doc(alice, 'userIntegrations', 'alice'), {
     type: 'discord',
+    uid: 'alice',
     enabled: false,
   }));
+  await assertFails(getDoc(doc(alice, 'userIntegrations', 'bob')));
 });
