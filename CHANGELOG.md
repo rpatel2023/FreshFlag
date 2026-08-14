@@ -82,44 +82,63 @@ Repository integration:
 
 Branch: `phase3-households`
 
-### Household domain and ownership
-
 - Added `Household`, `HouseholdMember`, and `HouseholdRole` domain models.
 - Household stores name, owner UID, member UID list, IANA timezone, and timestamps.
-- Membership uses explicit `owner` / `member` role documents under `households/{householdId}/members/{uid}`.
-- Added `HouseholdService` for discovering the caller's households, persisting preferred household, creating the first household, and reading current membership.
-- Added `HouseholdViewModel` for active household selection and owner/member state.
-- First authenticated user with no household is routed to `HouseholdSetupScreen` rather than silently getting an inferred timezone.
-- Settings displays household name, timezone, role, and supports switching when the user belongs to multiple households.
+- Membership uses explicit `owner` / `member` documents under `households/{householdId}/members/{uid}`.
+- Added household discovery, creation, preferred-household selection, first-run setup and switching.
+- Inventory moved to `households/{householdId}/items/{itemId}`.
+- Grocery items gained household/audit fields.
+- Inventory state uses Firestore snapshots for real-time multi-device propagation.
+- Firestore rules require household membership and protect household ownership/audit boundaries.
 
-### Household-owned inventory
+Ubuntu validation:
 
-- Inventory path changed from user-owned storage to `households/{householdId}/items/{itemId}`.
-- `FirebaseFirestoreService` now requires an active household instead of deriving a user-scoped collection.
-- `GroceryItem` carries `householdId`, `createdByUid`, `updatedByUid`, and `updatedAt` audit fields while remaining backward-readable for old records lacking those fields.
-- `GroceryViewModel` binds to the selected household and enriches writes with household/audit metadata.
-- Inventory state uses a Firestore snapshot subscription so changes propagate to all active members in real time instead of requiring manual refresh.
-- Switching/signing out cancels the previous household subscription and clears in-memory inventory.
-
-### Security rules
-
-- `/users/{uid}` remains self-only.
-- Household reads require membership.
-- Household creation requires the caller to be the owner and sole initial member.
-- Household updates/deletion require owner role.
-- Member documents are readable by household members; owner-controlled member mutation is reserved for invite/join work in Phase 4.
-- Inventory reads/writes require household membership.
-- Item create/update rules enforce household ID and audit UIDs.
-
-### Tests and Ubuntu validation
-
-- Existing persistence and Open Food Facts tests retained.
-- Added household serialization/role tests.
-- Expanded grocery persistence coverage to include household/audit fields and backward compatibility.
 - `flutter test --no-pub`: **9 passed**.
 - `dart analyze`: **No issues found**.
 - `flutter build linux --no-pub`: **success**.
-- Working tree after validation: **clean**.
-- Validated branch HEAD: `4111d95ee12c08d5a0932338fc55760670574b1a` before this changelog update.
+- Working tree: **clean**.
 
-Result: Phase 3 household ownership and real-time shared inventory are accepted and ready for repository integration.
+Repository integration:
+
+- Pull request #2 merged to `main` as `ccf57560b61ba8f2b11fe422d46dd39860fcb982`.
+- Added `docs/PHASE3_VALIDATION.md` with the validation record.
+
+## 2026-08-14 — Phase 4 household invitations — AWAITING RUNTIME VALIDATION
+
+Branch: `phase4-invites`
+
+### Invite model and service
+
+- Added `HouseholdInvite` with active/revoked status, creation/expiry timestamps and normalized share codes.
+- Invite codes are 12-character high-entropy values generated with `Random.secure()` from an ambiguity-reduced alphabet.
+- Invite documents are stored as `invites/{code}` so joining is a direct lookup rather than an enumerable code query.
+- Owners can create seven-day invite codes and revoke them.
+- Joining verifies authenticated user, code shape, invite status and expiry before writing membership.
+- Join transaction adds the caller to `memberUids`, creates `members/{uid}` with member role/invite provenance, and updates the caller's preferred household.
+
+### UI
+
+- First-run household setup now supports either creating a household or joining with a 12-character code.
+- Added Household Sharing screen.
+- Owners can create, copy and revoke an invite code.
+- Any signed-in user can join another household by code from Settings.
+
+### Security rules
+
+- Signed-in users may fetch a specific active/unexpired invite they already possess; invite collection listing is denied.
+- Invite creation/update/revoke requires household owner role.
+- Self-join household updates may alter only `memberUids`, `updatedAt`, and `lastJoinInviteId`.
+- Self-join requires a valid active/unexpired invite for that exact household and permits exactly one new UID: the caller.
+- Member creation during join requires caller UID, `member` role and matching valid invite provenance.
+- Household ownership cannot be changed through the invite path.
+
+### Tests
+
+- Existing 9 tests retained.
+- Added invite-code normalization coverage.
+- Added invite active/revoked lifecycle coverage.
+- Expected suite size at the next checkpoint: **11 tests**.
+
+### Current runtime boundary
+
+Phase 4 now changes Firestore transactions/rules, first-run routing UI, settings navigation, household state and test imports. No dependency changed. Flutter tests, analyzer and Linux compile are required before invitations are merged or Phase 5 notification rules are layered on top.
