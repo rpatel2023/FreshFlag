@@ -150,7 +150,12 @@ service cloud.firestore {
       allow update, delete: if isHouseholdOwner(resource.data.householdId);
     }
 
-    // Server-managed integration secrets. Clients interact only through callable functions.
+    // Server-managed per-user integration secrets. Clients interact only through callable functions.
+    match /userIntegrations/{uid} {
+      allow read, write: if false;
+    }
+
+    // Keep the abandoned household-scoped collection denied if old development data ever exists.
     match /householdIntegrations/{householdId} {
       allow read, write: if false;
     }
