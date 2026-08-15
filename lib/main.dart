@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -34,6 +36,14 @@ Future<void> _ensureFirebaseInitialized() async {
   }
 }
 
+Future<void> _initializeFcmAfterLaunch() async {
+  try {
+    await FCMService.instance.initialize();
+  } catch (e) {
+    debugPrint('FCM service initialization failed: $e');
+  }
+}
+
 Future<void> _initializeApp() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -55,13 +65,11 @@ Future<void> _initializeApp() async {
     debugPrint('FCM background handler setup failed: $e');
   }
 
-  try {
-    await FCMService.instance.initialize();
-  } catch (e) {
-    debugPrint('FCM service initialization failed: $e');
-  }
-
+  // Render the app before optional push-token work. APNs/FCM token retrieval can
+  // be slow or unavailable on free-signed/SideStore builds and must never hold
+  // the first Flutter frame on the native iOS launch screen.
   runApp(const FreshFlagApp());
+  unawaited(_initializeFcmAfterLaunch());
 }
 
 void main() async {
