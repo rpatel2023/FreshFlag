@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/distribution_config.dart';
 import '../services/fcm_service.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/local_database_service.dart';
@@ -29,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final theme = context.watch<ThemeProvider>();
     final household = context.watch<HouseholdViewModel>();
     final current = household.current;
+    final supportsRemotePush = DistributionConfig.supportsRemotePush;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -127,10 +129,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 SwitchListTile(
                   title: const Text('Push notifications'),
-                  subtitle: const Text('Receive household expiry reminders'),
-                  value: _notificationsEnabled,
-                  onChanged:
-                      _updatingNotifications ? null : _setNotificationsEnabled,
+                  subtitle: Text(
+                    supportsRemotePush
+                        ? 'Receive household expiry reminders'
+                        : 'Unavailable in the SideStore build. Use Discord reminders.',
+                  ),
+                  value: supportsRemotePush ? _notificationsEnabled : false,
+                  onChanged: !supportsRemotePush || _updatingNotifications
+                      ? null
+                      : _setNotificationsEnabled,
                 ),
                 ListTile(
                   leading: const Icon(Icons.discord),
@@ -176,6 +183,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _setNotificationsEnabled(bool value) async {
+    if (!DistributionConfig.supportsRemotePush) return;
+
     setState(() => _updatingNotifications = true);
     try {
       await FCMService.instance.setPushEnabledForCurrentUser(value);

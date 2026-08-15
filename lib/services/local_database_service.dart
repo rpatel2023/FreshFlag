@@ -19,8 +19,11 @@ class LocalDatabaseService {
     return prefs;
   }
 
+  // Push is opt-in. SideStore builds expose this as unavailable entirely; a
+  // standard/paid build requests notification permission when the user enables
+  // the setting.
   static bool get notificationsEnabled =>
-      _preferences.getBool('notifications_enabled') ?? true;
+      _preferences.getBool('notifications_enabled') ?? false;
 
   static Future<void> setNotificationsEnabled(bool enabled) async {
     await _preferences.setBool('notifications_enabled', enabled);

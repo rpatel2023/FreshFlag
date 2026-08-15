@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/distribution_config.dart';
 import '../models/notification_target.dart';
 import 'firebase_auth_service.dart';
 
@@ -21,6 +22,7 @@ class FCMService {
   FCMService._internal();
 
   static const _deviceIdPreferenceKey = 'freshflag_device_id';
+  static const _tokenTimeout = Duration(seconds: 10);
 
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -44,12 +46,15 @@ class FCMService {
   }
 
   Future<void> initialize() async {
+    if (!DistributionConfig.supportsRemotePush) {
+      debugPrint('FCM disabled for this distribution.');
+      return;
+    }
     if (_isInitialized) return;
     _isInitialized = true;
 
-    // Install message/tap listeners before attempting token retrieval. On
-    // Apple platforms the APNs token can lag app startup; that must not disable
-    // deep-link handling for the rest of the process lifetime.
+    // Install message/tap listeners before enabling auto-init. Token delivery is
+    // best-effort and must never gate app startup or household loading.
     _fcm.onTokenRefresh.listen((token) async {
       _currentToken = token;
       debugPrint('FCM token refreshed.');
@@ -63,9 +68,13 @@ class FCMService {
     FirebaseMessaging.onMessageOpenedApp.listen(_queueNavigationFromMessage);
 
     try {
-      if (!kIsWeb &&
-          (defaultTargetPlatform == TargetPlatform.iOS ||
-              defaultTargetPlatform == TargetPlatform.macOS)) {
+      await _fcm.setAutoInitEnabled(true);
+    } catch (e) {
+      debugPrint('FCM auto-init enable failed: $e');
+    }
+
+    try {
+      if (_isApplePlatform) {
         await _fcm.setForegroundNotificationPresentationOptions(
           alert: true,
           badge: true,
@@ -89,22 +98,29 @@ class FCMService {
       debugPrint('FCM initial-message lookup failed: $e');
     }
 
+    // Do not request notification permission implicitly at startup. If the user
+    // already granted it, capture an available token; otherwise the Settings
+    // opt-in path requests permission explicitly.
     try {
-      _currentToken = await _fcm.getToken();
+      final settings = await _fcm.getNotificationSettings();
+      if (_isAuthorized(settings.authorizationStatus)) {
+        _currentToken = await _getAvailableToken();
+      }
     } catch (e) {
-      debugPrint('Initial FCM token retrieval failed: $e');
+      debugPrint('Initial FCM token lookup skipped: $e');
     }
   }
 
   Future<bool> requestPermissions() async {
+    if (!DistributionConfig.supportsRemotePush) return false;
+
     try {
       final settings = await _fcm.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
-      return settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
+      return _isAuthorized(settings.authorizationStatus);
     } catch (e) {
       debugPrint('FCM permission request failed: $e');
       return false;
@@ -112,8 +128,10 @@ class FCMService {
   }
 
   Future<String?> getToken() async {
+    if (!DistributionConfig.supportsRemotePush) return null;
+
     try {
-      _currentToken = await _fcm.getToken();
+      _currentToken = await _getAvailableToken();
       return _currentToken;
     } catch (e) {
       debugPrint('FCM token retrieval failed: $e');
@@ -122,11 +140,13 @@ class FCMService {
   }
 
   Future<void> syncRegistrationForCurrentUser({String? token}) async {
+    if (!DistributionConfig.supportsRemotePush) return;
+
     final uid = _auth.currentUserId;
     if (uid == null) return;
 
     try {
-      final currentToken = token ?? _currentToken ?? await _fcm.getToken();
+      final currentToken = token ?? _currentToken ?? await _getAvailableToken();
       if (currentToken == null || currentToken.isEmpty) return;
       _currentToken = currentToken;
 
@@ -151,6 +171,15 @@ class FCMService {
   }
 
   Future<void> setPushEnabledForCurrentUser(bool enabled) async {
+    if (!DistributionConfig.supportsRemotePush) {
+      if (enabled) {
+        throw StateError(
+          'Push notifications are unavailable in the SideStore build',
+        );
+      }
+      return;
+    }
+
     final uid = _auth.currentUserId;
     if (uid == null) return;
 
@@ -195,6 +224,27 @@ class FCMService {
     _pendingNavigationTarget = target;
     _navigationController.add(target);
   }
+
+  Future<String?> _getAvailableToken() async {
+    if (_isApplePlatform) {
+      final apnsToken = await _fcm.getAPNSToken();
+      if (apnsToken == null || apnsToken.isEmpty) {
+        debugPrint('APNs token unavailable; skipping FCM token request.');
+        return null;
+      }
+    }
+
+    return _fcm.getToken().timeout(_tokenTimeout);
+  }
+
+  bool _isAuthorized(AuthorizationStatus status) =>
+      status == AuthorizationStatus.authorized ||
+      status == AuthorizationStatus.provisional;
+
+  bool get _isApplePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
 
   Future<String> _getOrCreateDeviceId() async {
     final prefs = await SharedPreferences.getInstance();

@@ -40,14 +40,34 @@ jobs:
       - name: Verify lockfile is reproducible
         run: git diff --exit-code -- pubspec.lock
 
-      - name: Test
-        run: flutter test --no-pub
+      - name: Test SideStore profile
+        run: flutter test --no-pub --dart-define=FRESHFLAG_SIDESTORE=true
 
       - name: Analyze
         run: dart analyze
 
+      - name: Verify SideStore capability budget
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The zero-fee build intentionally has no entitlements/capabilities
+          # that require a paid Apple team. Fail closed if one is introduced.
+          if find ios/Runner -maxdepth 1 -name '*.entitlements' -print -quit | grep -q .; then
+            echo 'Unexpected iOS Runner entitlements file in SideStore build.' >&2
+            exit 1
+          fi
+          if grep -Eq 'CODE_SIGN_ENTITLEMENTS|SystemCapabilities' ios/Runner.xcodeproj/project.pbxproj; then
+            echo 'Unexpected Xcode signing capability in SideStore build.' >&2
+            exit 1
+          fi
+
+          test "$(/usr/libexec/PlistBuddy -c 'Print :FirebaseMessagingAutoInitEnabled' ios/Runner/Info.plist)" = "false"
+
       - name: Build unsigned iOS app
-        run: flutter build ios --release --no-codesign --no-pub
+        run: >-
+          flutter build ios --release --no-codesign --no-pub
+          --dart-define=FRESHFLAG_SIDESTORE=true
 
       - name: Assemble SideStore IPA
         shell: bash
@@ -57,9 +77,20 @@ jobs:
           APP="build/ios/iphoneos/Runner.app"
           OUT="build/sidestore"
           BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+          FIREBASE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' ios/Runner/GoogleService-Info.plist)"
+          FCM_AUTO_INIT="$(/usr/libexec/PlistBuddy -c 'Print :FirebaseMessagingAutoInitEnabled' "$APP/Info.plist")"
 
           test "$BUNDLE_ID" = "com.rpatel2023.freshflag"
+          test "$FIREBASE_BUNDLE_ID" = "$BUNDLE_ID"
+          test "$FCM_AUTO_INIT" = "false"
           test -f ios/Runner/GoogleService-Info.plist
+
+          # Keep the Personal-Team App ID budget predictable. FreshFlag has no
+          # extensions; adding one must be an explicit distribution decision.
+          if find "$APP" -type d -name '*.appex' -print -quit | grep -q .; then
+            echo 'Unexpected app extension in SideStore IPA.' >&2
+            exit 1
+          fi
 
           # FreshFlag initializes Firebase with explicit Dart options. Include
           # the production plist in the final bundle as canonical native iOS
