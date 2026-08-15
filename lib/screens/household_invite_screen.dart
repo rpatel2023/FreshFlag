@@ -56,7 +56,7 @@ class _HouseholdInviteScreenState extends State<HouseholdInviteScreen> {
                       ElevatedButton.icon(
                         onPressed: _busy ? null : _createInvite,
                         icon: const Icon(Icons.person_add_alt_1_outlined),
-                        label: const Text('Create Invite Code'),
+                        label: const Text('Create invite code'),
                       )
                     else ...[
                       SelectableText(
@@ -127,7 +127,7 @@ class _HouseholdInviteScreenState extends State<HouseholdInviteScreen> {
                   const SizedBox(height: AppTheme.spacingM),
                   ElevatedButton(
                     onPressed: _busy ? null : _joinHousehold,
-                    child: const Text('Join Household'),
+                    child: const Text('Join household'),
                   ),
                 ],
               ),
