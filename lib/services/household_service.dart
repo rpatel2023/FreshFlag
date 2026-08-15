@@ -65,6 +65,7 @@ class HouseholdService {
         uid: uid,
         role: HouseholdRole.owner,
         joinedAt: now,
+        displayName: _auth.currentUser?.displayName,
       ).toMap(),
     );
     batch.set(
@@ -103,5 +104,17 @@ class HouseholdService {
         .get();
     final data = doc.data();
     return data == null ? null : HouseholdMember.fromMap(doc.id, data);
+  }
+
+  Stream<HouseholdMember?> watchMembership(String householdId) {
+    return _households
+        .doc(householdId)
+        .collection('members')
+        .doc(_uid)
+        .snapshots()
+        .map((doc) {
+      final data = doc.data();
+      return data == null ? null : HouseholdMember.fromMap(doc.id, data);
+    });
   }
 }

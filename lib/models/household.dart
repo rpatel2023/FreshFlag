@@ -39,23 +39,47 @@ class Household {
   }
 }
 
-enum HouseholdRole { owner, member }
+enum HouseholdRole { owner, admin, member, guest }
+
+extension HouseholdRolePermissions on HouseholdRole {
+  bool get canManageHousehold =>
+      this == HouseholdRole.owner || this == HouseholdRole.admin;
+
+  bool get canWriteInventory => this != HouseholdRole.guest;
+
+  String get label => switch (this) {
+        HouseholdRole.owner => 'Owner',
+        HouseholdRole.admin => 'Admin',
+        HouseholdRole.member => 'Member',
+        HouseholdRole.guest => 'Guest',
+      };
+}
 
 class HouseholdMember {
   const HouseholdMember({
     required this.uid,
     required this.role,
     required this.joinedAt,
+    this.displayName,
   });
 
   final String uid;
   final HouseholdRole role;
   final DateTime joinedAt;
+  final String? displayName;
+
+  String get effectiveDisplayName {
+    final name = displayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return 'Household member';
+  }
 
   Map<String, dynamic> toMap() => {
         'uid': uid,
         'role': role.name,
         'joinedAt': joinedAt.toIso8601String(),
+        if (displayName?.trim().isNotEmpty == true)
+          'displayName': displayName!.trim(),
       };
 
   factory HouseholdMember.fromMap(String uid, Map<String, dynamic> map) {
@@ -67,6 +91,7 @@ class HouseholdMember {
         orElse: () => HouseholdRole.member,
       ),
       joinedAt: DateTime.parse(map['joinedAt'] as String),
+      displayName: map['displayName'] as String?,
     );
   }
 }

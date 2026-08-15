@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/grocery_item.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
+import '../viewmodels/household_viewmodel.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   const ItemDetailScreen({
@@ -18,6 +19,7 @@ class ItemDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inventory = context.watch<GroceryViewModel>();
+    final household = context.watch<HouseholdViewModel>();
     final liveItem = inventory.getItemById(itemId);
     final item = liveItem ?? (inventory.isLoading ? initialItem : null);
     final scheme = Theme.of(context).colorScheme;
@@ -83,17 +85,26 @@ class ItemDetailScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppTheme.spacingL),
-                FilledButton.icon(
-                  onPressed: inventory.isUploading
-                      ? null
-                      : () => _setConsumed(context, item, !item.isConsumed),
-                  icon: Icon(
-                    item.isConsumed ? Icons.undo : Icons.check_circle_outline,
+                if (household.canWriteInventory)
+                  FilledButton.icon(
+                    onPressed: inventory.isUploading
+                        ? null
+                        : () => _setConsumed(context, item, !item.isConsumed),
+                    icon: Icon(
+                      item.isConsumed ? Icons.undo : Icons.check_circle_outline,
+                    ),
+                    label: Text(
+                      item.isConsumed ? 'Restore to inventory' : 'Mark consumed',
+                    ),
+                  )
+                else
+                  const Card(
+                    child: ListTile(
+                      leading: Icon(Icons.visibility_outlined),
+                      title: Text('Read-only guest access'),
+                      subtitle: Text('You can view this item but cannot change it.'),
+                    ),
                   ),
-                  label: Text(
-                    item.isConsumed ? 'Restore to inventory' : 'Mark consumed',
-                  ),
-                ),
               ],
             ),
     );

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/grocery_item.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
+import '../viewmodels/household_viewmodel.dart';
 import 'add_item_screen.dart';
 import 'barcode_scanner_screen.dart';
 import 'item_detail_screen.dart';
@@ -38,6 +39,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final inventory = context.watch<GroceryViewModel>();
+    final household = context.watch<HouseholdViewModel>();
+    final canWrite = household.canWriteInventory;
     final activeItems = inventory.items.where((item) => !item.isConsumed).toList();
     final consumedItems = inventory.items.where((item) => item.isConsumed).toList();
     final sourceItems = _selectedView == _InventoryView.active
@@ -63,25 +66,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppTheme.spacingL),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _QuickAction(
-                    icon: Icons.add_circle_outline,
-                    label: 'Add item',
-                    onTap: () => _openAddItem(context),
+            if (canWrite)
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickAction(
+                      icon: Icons.add_circle_outline,
+                      label: 'Add item',
+                      onTap: () => _openAddItem(context),
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppTheme.spacingM),
-                Expanded(
-                  child: _QuickAction(
-                    icon: Icons.qr_code_scanner,
-                    label: 'Scan barcode',
-                    onTap: () => _openScanner(context),
+                  const SizedBox(width: AppTheme.spacingM),
+                  Expanded(
+                    child: _QuickAction(
+                      icon: Icons.qr_code_scanner,
+                      label: 'Scan barcode',
+                      onTap: () => _openScanner(context),
+                    ),
                   ),
+                ],
+              )
+            else
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.visibility_outlined),
+                  title: Text('Guest access'),
+                  subtitle: Text('This household is read-only for your account.'),
                 ),
-              ],
-            ),
+              ),
             const SizedBox(height: AppTheme.spacingL),
             _InventorySummary(
               inventory: inventory,
@@ -147,7 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: _InventoryCard(
                     item: item,
                     onTap: () => _openItem(context, item),
-                    onDelete: () => _deleteItem(context, item),
+                    onDelete: canWrite ? () => _deleteItem(context, item) : null,
                   ),
                 ),
               ),
@@ -306,12 +318,12 @@ class _InventoryCard extends StatelessWidget {
   const _InventoryCard({
     required this.item,
     required this.onTap,
-    required this.onDelete,
+    this.onDelete,
   });
 
   final GroceryItem item;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -341,11 +353,13 @@ class _InventoryCard extends StatelessWidget {
           '${item.barcode == null ? '' : '\nBarcode: ${item.barcode}'}',
         ),
         isThreeLine: item.barcode != null,
-        trailing: IconButton(
-          tooltip: 'Delete',
-          onPressed: onDelete,
-          icon: const Icon(Icons.delete_outline),
-        ),
+        trailing: onDelete == null
+            ? null
+            : IconButton(
+                tooltip: 'Delete',
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline),
+              ),
       ),
     );
   }

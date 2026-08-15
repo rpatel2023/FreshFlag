@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../config/distribution_config.dart';
+import '../models/household.dart';
 import '../services/fcm_service.dart';
 import '../services/firebase_auth_service.dart';
+import '../services/household_member_service.dart';
 import '../services/local_database_service.dart';
 import '../theme/theme_provider.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/household_viewmodel.dart';
 import 'discord_reminders_screen.dart';
 import 'household_invite_screen.dart';
+import 'household_members_screen.dart';
 import 'notification_rules_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -22,6 +25,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = LocalDatabaseService.notificationsEnabled;
   bool _updatingNotifications = false;
+  bool _leavingHousehold = false;
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final household = context.watch<HouseholdViewModel>();
     final current = household.current;
     final supportsRemotePush = DistributionConfig.supportsRemotePush;
+    final roleLabel = household.role?.label ?? 'Member';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -56,15 +61,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ListTile(
                     leading: const Icon(Icons.home_outlined),
                     title: Text(current.name),
-                    subtitle: Text(
-                      '${current.timezone} • ${household.isOwner ? 'Owner' : 'Member'}',
+                    subtitle: Text('${current.timezone} • $roleLabel'),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.people_outline),
+                    title: const Text('Members & access'),
+                    subtitle: const Text('See household members and their roles'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => HouseholdMembersScreen(
+                          householdId: current.id,
+                          householdName: current.name,
+                        ),
+                      ),
                     ),
                   ),
                   ListTile(
                     leading: const Icon(Icons.group_add_outlined),
                     title: const Text('Household sharing'),
                     subtitle: Text(
-                      household.isOwner
+                      household.canManageHousehold
                           ? 'Create invite codes or join another household'
                           : 'Join another household with an invite code',
                     ),
@@ -79,7 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     leading: const Icon(Icons.notifications_active_outlined),
                     title: const Text('Expiry reminder rules'),
                     subtitle: Text(
-                      household.isOwner
+                      household.canManageHousehold
                           ? 'Choose days, send time, and reminder messages'
                           : 'View household reminder rules',
                     ),
@@ -90,6 +107,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
+                  if (!household.isOwner)
+                    ListTile(
+                      leading: const Icon(Icons.exit_to_app),
+                      title: const Text('Leave household'),
+                      subtitle: const Text('Remove your access to this household'),
+                      enabled: !_leavingHousehold,
+                      onTap: _leavingHousehold
+                          ? null
+                          : () => _leaveHousehold(context, current.id, current.name),
+                    ),
                   if (household.households.length > 1)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
@@ -184,7 +211,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _setNotificationsEnabled(bool value) async {
     if (!DistributionConfig.supportsRemotePush) return;
-
     setState(() => _updatingNotifications = true);
     try {
       await FCMService.instance.setPushEnabledForCurrentUser(value);
@@ -198,6 +224,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } finally {
       if (mounted) setState(() => _updatingNotifications = false);
+    }
+  }
+
+  Future<void> _leaveHousehold(
+    BuildContext context,
+    String householdId,
+    String householdName,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Leave household?'),
+        content: Text('You will lose access to $householdName.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _leavingHousehold = true);
+    try {
+      await HouseholdMemberService.instance.leaveHousehold(householdId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Left $householdName.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not leave household: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _leavingHousehold = false);
     }
   }
 

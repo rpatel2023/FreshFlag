@@ -83,11 +83,12 @@ class NotificationRule {
     required int quantity,
     required String location,
   }) {
-    return template
+    final rendered = template
         .replaceAll('{item}', item)
         .replaceAll('{days}', days.toString())
         .replaceAll('{expiry_date}', expiryDate)
         .replaceAll('{quantity}', quantity.toString())
         .replaceAll('{location}', location);
+    return days == 1 ? rendered.replaceAll(RegExp(r'\b1 days\b'), '1 day') : rendered;
   }
 }
