@@ -37,7 +37,7 @@ class ItemDetailScreen extends StatelessWidget {
                   builder: (context, snapshot) {
                     final favorite = snapshot.data ?? false;
                     return IconButton(
-                      tooltip: favorite ? 'Remove from favorites' : 'Add to favorites',
+                      tooltip: favorite ? 'Remove from favourites' : 'Add to favourites',
                       onPressed: () => _toggleFavorite(context, item, favorite),
                       icon: Icon(favorite ? Icons.star : Icons.star_outline),
                     );
@@ -166,15 +166,15 @@ class ItemDetailScreen extends StatelessWidget {
         SnackBar(
           content: Text(
             favorite
-                ? '${item.name} removed from favorites.'
-                : '${item.name} added to favorites.',
+                ? '${item.name} removed from favourites.'
+                : '${item.name} added to favourites.',
           ),
         ),
       );
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not update favorites.')),
+        const SnackBar(content: Text('Could not update favourites.')),
       );
     }
   }
