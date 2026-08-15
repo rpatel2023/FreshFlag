@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {canRemoveMember, canSetMemberRole} from './household_roles.js';
+import {
+  canLeaveHousehold,
+  canRemoveMember,
+  canSetMemberRole,
+} from './household_roles.js';
 
 test('owner can assign admin member and guest but cannot alter owner', () => {
   assert.equal(canSetMemberRole('owner', 'member', 'admin'), true);
@@ -33,4 +37,11 @@ test('removal follows owner/admin boundary', () => {
   assert.equal(canRemoveMember('admin', 'guest'), true);
   assert.equal(canRemoveMember('admin', 'admin'), false);
   assert.equal(canRemoveMember('member', 'guest'), false);
+});
+
+test('non-owners can leave but owner cannot leave without transfer', () => {
+  assert.equal(canLeaveHousehold('owner'), false);
+  assert.equal(canLeaveHousehold('admin'), true);
+  assert.equal(canLeaveHousehold('member'), true);
+  assert.equal(canLeaveHousehold('guest'), true);
 });
