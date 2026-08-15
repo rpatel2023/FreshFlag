@@ -50,6 +50,22 @@ test('renderTemplate replaces all supported variables', () => {
   );
 });
 
+test('renderTemplate singularizes existing one-day templates', () => {
+  assert.equal(
+    renderTemplate(
+      '{item} expires in {days} days',
+      {
+        name: 'Beans',
+        quantity: 1,
+        expiryDate: '2026-08-16',
+        location: null,
+      },
+      1,
+    ),
+    'Beans expires in 1 day',
+  );
+});
+
 test('deliveryId is deterministic per recipient', () => {
   assert.equal(
     deliveryId('house', 'item', 'rule', '2026-08-20', 'user'),
