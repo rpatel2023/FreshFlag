@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/grocery_item.dart';
+import '../services/favorite_service.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 import '../viewmodels/household_viewmodel.dart';
+import 'add_item_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   const ItemDetailScreen({
@@ -25,7 +27,30 @@ class ItemDetailScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Item details')),
+      appBar: AppBar(
+        title: const Text('Item details'),
+        actions: item == null
+            ? null
+            : [
+                StreamBuilder<bool>(
+                  stream: FavoriteService.instance.watchIsFavorite(item),
+                  builder: (context, snapshot) {
+                    final favorite = snapshot.data ?? false;
+                    return IconButton(
+                      tooltip: favorite ? 'Remove from favorites' : 'Add to favorites',
+                      onPressed: () => _toggleFavorite(context, item, favorite),
+                      icon: Icon(favorite ? Icons.star : Icons.star_outline),
+                    );
+                  },
+                ),
+                if (household.canWriteInventory)
+                  IconButton(
+                    tooltip: 'Edit item',
+                    onPressed: () => _editItem(context, item),
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+              ],
+      ),
       body: item == null
           ? const _UnavailableItem()
           : ListView(
@@ -119,6 +144,41 @@ class ItemDetailScreen extends StatelessWidget {
     return 'Expires in $days days';
   }
 
+  static Future<void> _editItem(BuildContext context, GroceryItem item) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AddItemScreen(editItem: item)),
+    );
+  }
+
+  static Future<void> _toggleFavorite(
+    BuildContext context,
+    GroceryItem item,
+    bool favorite,
+  ) async {
+    try {
+      if (favorite) {
+        await FavoriteService.instance.removeForItem(item);
+      } else {
+        await FavoriteService.instance.saveFromItem(item);
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            favorite
+                ? '${item.name} removed from favorites.'
+                : '${item.name} added to favorites.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update favorites.')),
+      );
+    }
+  }
+
   static Future<void> _setConsumed(
     BuildContext context,
     GroceryItem item,
@@ -128,6 +188,23 @@ class ItemDetailScreen extends StatelessWidget {
       await context
           .read<GroceryViewModel>()
           .updateItem(item.copyWith(isConsumed: consumed));
+      if (!context.mounted) return;
+
+      if (consumed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${item.name} marked consumed.'),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () {
+                context
+                    .read<GroceryViewModel>()
+                    .updateItem(item.copyWith(isConsumed: false));
+              },
+            ),
+          ),
+        );
+      }
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
