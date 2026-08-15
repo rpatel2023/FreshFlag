@@ -466,3 +466,19 @@ Branch: `fix/nonblocking-ios-startup`; PR #13.
 - PR #14 final Flutter CI run `31856925385`: **success** — dependency resolution, lockfile reproducibility, **21 tests**, analyzer, and Linux release build all passed.
 - PR #14 merged to `main` as `1499cbb0547c0be85f88a969d8093c59c6aaecc6`.
 - Physical signup/sign-in must now be retested with a newly built SideStore IPA. The first failed Create Account call may already have created the Firebase user server-side before response decoding failed; if the same address later reports already-in-use, test Sign In with the same password rather than treating that as a new auth failure.
+
+### SideStore iOS build attempt #4 + physical core-flow validation — PASSED TO INVENTORY PERSISTENCE
+
+- Manual SideStore workflow run `31858671480` built `main` at `139108a670d789c3dadac064bfae0a550da4be6b` using macOS 14 / Xcode 15.4.
+- Every SideStore build gate passed: dependency resolution, lockfile reproducibility, SideStore-profile tests, analyzer, capability-budget audit, unsigned iOS build, IPA assembly, and artifact upload.
+- Artifact `FreshFlag-SideStore-IPA` ID `9239965015`: **22,870,095 bytes**, SHA-256 `fb65904990d09767574089a9b22f23f702cc4de3bffe2183196a6acab8c23aec`, retained until `2026-08-22T02:25:25Z`.
+- Installed the run-#4 IPA over the existing app with iLoader; physical app launch succeeded.
+- Signed out and signed back in with the same Firebase email/password account successfully. This physically confirms the Pigeon/Auth alignment repair; the previous `PigeonUserDetails` cast failure is resolved.
+- iOS camera permission and `mobile_scanner` path passed on device; the scanner view opened normally.
+- Scanned barcode `061120102241`; Open Food Facts recognition returned **Pizza Mozzarella** and correctly carried the product into Add Item.
+- Add Item physically validated category selection, date picker, dark-mode rendering, and the optional Storage location field.
+- Saved the item with category `Dairy`, quantity `1`, location `Fridge`, and expiry date `2026-08-20`.
+- Production Firestore write succeeded and the household inventory stream immediately displayed the saved item.
+- Force-closed and reopened FreshFlag; the item remained present, proving persisted household inventory reload after a full process restart.
+- Item Details after restart displayed the expected persisted fields: category `Dairy`, expiry `2026-08-20`, quantity `1`, location `Fridge`, and barcode `061120102241`.
+- Next physical gate: validate Mark consumed / Restore, then proceed to household sharing/realtime sync and per-user Discord reminder delivery.
