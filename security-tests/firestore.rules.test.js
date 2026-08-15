@@ -9,6 +9,7 @@ import {
 import {
   Timestamp,
   arrayUnion,
+  deleteDoc,
   doc,
   getDoc,
   setDoc,
@@ -46,6 +47,7 @@ async function seedHousehold({
   id = 'house-1',
   ownerUid = 'owner-1',
   memberUids = ['owner-1', 'member-1'],
+  roles = {},
 } = {}) {
   await seed(async (db) => {
     await setDoc(doc(db, 'households', id), {
@@ -59,8 +61,9 @@ async function seedHousehold({
     for (const uid of memberUids) {
       await setDoc(doc(db, 'households', id, 'members', uid), {
         uid,
-        role: uid === ownerUid ? 'owner' : 'member',
+        role: roles[uid] ?? (uid === ownerUid ? 'owner' : 'member'),
         joinedAt: '2026-08-14T12:00:00.000Z',
+        displayName: `User ${uid}`,
       });
     }
   });
@@ -83,20 +86,8 @@ async function seedInvite({
   });
 }
 
-test('household members can read their household but outsiders cannot', async () => {
-  await seedHousehold();
-  const member = env.authenticatedContext('member-1').firestore();
-  const outsider = env.authenticatedContext('outsider-1').firestore();
-
-  await assertSucceeds(getDoc(doc(member, 'households', 'house-1')));
-  await assertFails(getDoc(doc(outsider, 'households', 'house-1')));
-});
-
-test('only the owner can manage notification rules', async () => {
-  await seedHousehold();
-  const owner = env.authenticatedContext('owner-1').firestore();
-  const member = env.authenticatedContext('member-1').firestore();
-  const rule = {
+function reminderRule() {
+  return {
     daysBefore: 3,
     titleTemplate: '{item} expires soon',
     bodyTemplate: '{item} expires in {days} days.',
@@ -105,9 +96,114 @@ test('only the owner can manage notification rules', async () => {
     createdAt: '2026-08-14T12:00:00.000Z',
     updatedAt: '2026-08-14T12:00:00.000Z',
   };
+}
 
-  await assertSucceeds(setDoc(doc(owner, 'households', 'house-1', 'notificationRules', 'rule-1'), rule));
-  await assertFails(setDoc(doc(member, 'households', 'house-1', 'notificationRules', 'rule-2'), rule));
+function inventoryItem(uid, id = 'item-1') {
+  return {
+    id,
+    householdId: 'house-1',
+    name: 'Milk',
+    quantity: 1,
+    category: 'Dairy',
+    addedDate: '2026-08-14T12:00:00.000Z',
+    expiryDate: '2026-08-20',
+    createdByUid: uid,
+    updatedByUid: uid,
+  };
+}
+
+test('household members including guests can read but outsiders cannot', async () => {
+  await seedHousehold({
+    memberUids: ['owner-1', 'member-1', 'guest-1'],
+    roles: {'guest-1': 'guest'},
+  });
+  const member = env.authenticatedContext('member-1').firestore();
+  const guest = env.authenticatedContext('guest-1').firestore();
+  const outsider = env.authenticatedContext('outsider-1').firestore();
+
+  await assertSucceeds(getDoc(doc(member, 'households', 'house-1')));
+  await assertSucceeds(getDoc(doc(guest, 'households', 'house-1')));
+  await assertFails(getDoc(doc(outsider, 'households', 'house-1')));
+});
+
+test('owner and admin can manage notification rules; member and guest cannot', async () => {
+  await seedHousehold({
+    memberUids: ['owner-1', 'admin-1', 'member-1', 'guest-1'],
+    roles: {'admin-1': 'admin', 'guest-1': 'guest'},
+  });
+  const owner = env.authenticatedContext('owner-1').firestore();
+  const admin = env.authenticatedContext('admin-1').firestore();
+  const member = env.authenticatedContext('member-1').firestore();
+  const guest = env.authenticatedContext('guest-1').firestore();
+  const rule = reminderRule();
+
+  await assertSucceeds(setDoc(doc(owner, 'households', 'house-1', 'notificationRules', 'owner-rule'), rule));
+  await assertSucceeds(setDoc(doc(admin, 'households', 'house-1', 'notificationRules', 'admin-rule'), rule));
+  await assertFails(setDoc(doc(member, 'households', 'house-1', 'notificationRules', 'member-rule'), rule));
+  await assertFails(setDoc(doc(guest, 'households', 'house-1', 'notificationRules', 'guest-rule'), rule));
+});
+
+test('owner and admin can create and revoke invites; member and guest cannot', async () => {
+  await seedHousehold({
+    memberUids: ['owner-1', 'admin-1', 'member-1', 'guest-1'],
+    roles: {'admin-1': 'admin', 'guest-1': 'guest'},
+  });
+  const expiresAt = Timestamp.fromDate(new Date('2100-01-01T00:00:00.000Z'));
+  const owner = env.authenticatedContext('owner-1').firestore();
+  const admin = env.authenticatedContext('admin-1').firestore();
+  const member = env.authenticatedContext('member-1').firestore();
+  const guest = env.authenticatedContext('guest-1').firestore();
+
+  const makeInvite = (createdByUid) => ({
+    householdId: 'house-1',
+    createdByUid,
+    createdAt: Timestamp.fromDate(new Date()),
+    expiresAt,
+    status: 'active',
+  });
+
+  await assertSucceeds(setDoc(doc(owner, 'invites', 'OWNERINVITE1'), makeInvite('owner-1')));
+  await assertSucceeds(setDoc(doc(admin, 'invites', 'ADMININVITE1'), makeInvite('admin-1')));
+  await assertFails(setDoc(doc(member, 'invites', 'MEMBERINVIT1'), makeInvite('member-1')));
+  await assertFails(setDoc(doc(guest, 'invites', 'GUESTINVITE1'), makeInvite('guest-1')));
+  await assertSucceeds(updateDoc(doc(admin, 'invites', 'OWNERINVITE1'), {status: 'revoked'}));
+});
+
+test('member can mutate inventory while guest is strictly read only', async () => {
+  await seedHousehold({
+    memberUids: ['owner-1', 'member-1', 'guest-1'],
+    roles: {'guest-1': 'guest'},
+  });
+  await seed(async (db) => {
+    await setDoc(doc(db, 'households', 'house-1', 'items', 'existing'), {
+      ...inventoryItem('owner-1', 'existing'),
+      id: 'existing',
+    });
+  });
+
+  const member = env.authenticatedContext('member-1').firestore();
+  const guest = env.authenticatedContext('guest-1').firestore();
+
+  await assertSucceeds(setDoc(
+    doc(member, 'households', 'house-1', 'items', 'member-item'),
+    inventoryItem('member-1', 'member-item'),
+  ));
+  await assertSucceeds(updateDoc(
+    doc(member, 'households', 'house-1', 'items', 'member-item'),
+    {updatedByUid: 'member-1', quantity: 2},
+  ));
+  await assertSucceeds(deleteDoc(doc(member, 'households', 'house-1', 'items', 'member-item')));
+
+  await assertSucceeds(getDoc(doc(guest, 'households', 'house-1', 'items', 'existing')));
+  await assertFails(setDoc(
+    doc(guest, 'households', 'house-1', 'items', 'guest-item'),
+    inventoryItem('guest-1', 'guest-item'),
+  ));
+  await assertFails(updateDoc(
+    doc(guest, 'households', 'house-1', 'items', 'existing'),
+    {updatedByUid: 'guest-1', quantity: 3},
+  ));
+  await assertFails(deleteDoc(doc(guest, 'households', 'house-1', 'items', 'existing')));
 });
 
 test('users can only write their own device registrations', async () => {
@@ -123,7 +219,7 @@ test('users can only write their own device registrations', async () => {
   await assertFails(setDoc(doc(alice, 'users', 'bob', 'devices', 'device-1'), device));
 });
 
-test('a valid invite allows exactly the signed-in user to join without a pre-read', async () => {
+test('a valid invite allows exactly the signed-in user to join as member without a pre-read', async () => {
   await seedHousehold({memberUids: ['owner-1']});
   await seedInvite();
 
@@ -146,6 +242,7 @@ test('a valid invite allows exactly the signed-in user to join without a pre-rea
     role: 'member',
     joinedAt: '2026-08-14T13:00:00.000Z',
     inviteId: 'ABCDEFGH2345',
+    displayName: 'Joiner',
   });
   batch.set(userRef, {
     currentHouseholdId: 'house-1',
@@ -183,12 +280,28 @@ test('revoked and expired invites cannot authorize a join', async () => {
   }
 });
 
-test('a member cannot escalate their role to owner', async () => {
-  await seedHousehold();
+test('member role documents are backend managed even for owner and admin clients', async () => {
+  await seedHousehold({
+    memberUids: ['owner-1', 'admin-1', 'member-1'],
+    roles: {'admin-1': 'admin'},
+  });
+  const owner = env.authenticatedContext('owner-1').firestore();
+  const admin = env.authenticatedContext('admin-1').firestore();
   const member = env.authenticatedContext('member-1').firestore();
-  await assertFails(updateDoc(doc(member, 'households', 'house-1', 'members', 'member-1'), {
-    role: 'owner',
-  }));
+
+  await assertFails(updateDoc(
+    doc(owner, 'households', 'house-1', 'members', 'member-1'),
+    {role: 'admin'},
+  ));
+  await assertFails(updateDoc(
+    doc(admin, 'households', 'house-1', 'members', 'member-1'),
+    {role: 'guest'},
+  ));
+  await assertFails(updateDoc(
+    doc(member, 'households', 'house-1', 'members', 'member-1'),
+    {role: 'owner'},
+  ));
+  await assertFails(deleteDoc(doc(owner, 'households', 'house-1', 'members', 'member-1')));
 });
 
 test('membership in one household does not authorize writes to another', async () => {
