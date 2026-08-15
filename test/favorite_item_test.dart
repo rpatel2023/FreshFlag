@@ -3,8 +3,8 @@ import 'package:freshflag/models/favorite_item.dart';
 import 'package:freshflag/models/grocery_item.dart';
 
 void main() {
-  GroceryItem item({String? barcode}) => GroceryItem(
-        id: 'item-1',
+  GroceryItem item({String? barcode, String id = 'item-1'}) => GroceryItem(
+        id: id,
         name: 'Milk',
         quantity: 2,
         category: 'Dairy',
@@ -15,7 +15,7 @@ void main() {
         notes: 'Purchase-specific note',
       );
 
-  test('favorite keeps reusable product fields without an expiry date', () {
+  test('favourite keeps reusable product fields without an expiry date', () {
     final favorite = FavoriteItem.fromGroceryItem(item(barcode: '0123456789012'));
     final map = favorite.toMap();
 
@@ -28,16 +28,21 @@ void main() {
     expect(map.containsKey('notes'), isFalse);
   });
 
-  test('barcode favorites use a deterministic product id', () {
+  test('barcode favourites use a deterministic product id', () {
     final first = FavoriteItem.fromGroceryItem(item(barcode: '0123456789012'));
-    final second = FavoriteItem.fromGroceryItem(item(barcode: '0123456789012'));
+    final second = FavoriteItem.fromGroceryItem(
+      item(barcode: '0123456789012', id: 'different-item'),
+    );
 
     expect(first.id, 'barcode-0123456789012');
     expect(second.id, first.id);
   });
 
-  test('items without a barcode use their inventory id', () {
-    final favorite = FavoriteItem.fromGroceryItem(item());
-    expect(favorite.id, 'item-item-1');
+  test('manual favourites deduplicate by normalized name and category', () {
+    final first = FavoriteItem.fromGroceryItem(item());
+    final second = FavoriteItem.fromGroceryItem(item(id: 'different-item'));
+
+    expect(first.id, 'manual-milk%7Cdairy');
+    expect(second.id, first.id);
   });
 }
