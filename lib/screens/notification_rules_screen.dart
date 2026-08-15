@@ -19,9 +19,10 @@ class NotificationRulesScreen extends StatelessWidget {
       return const Scaffold(body: Center(child: Text('Select a household first.')));
     }
 
+    final canManage = household.canManageHousehold;
     return Scaffold(
       appBar: AppBar(title: const Text('Expiry reminders')),
-      floatingActionButton: household.isOwner
+      floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () => _showRuleEditor(context, current.id),
               icon: const Icon(Icons.add_alert_outlined),
@@ -54,9 +55,9 @@ class NotificationRulesScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: AppTheme.spacingS),
                     Text(
-                      household.isOwner
+                      canManage
                           ? 'Add a rule to choose when and what household members are notified.'
-                          : 'The household owner manages reminder rules.',
+                          : 'Household owners and admins manage reminder rules.',
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -76,7 +77,7 @@ class NotificationRulesScreen extends StatelessWidget {
                   children: [
                     SwitchListTile(
                       value: rule.enabled,
-                      onChanged: household.isOwner
+                      onChanged: canManage
                           ? (value) => NotificationRuleService.instance.updateRule(
                                 current.id,
                                 rule.copyWith(enabled: value),
@@ -100,7 +101,7 @@ class NotificationRulesScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (household.isOwner)
+                    if (canManage)
                       OverflowBar(
                         alignment: MainAxisAlignment.end,
                         children: [
