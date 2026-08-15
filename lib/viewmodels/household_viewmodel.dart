@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/household.dart';
@@ -11,17 +13,22 @@ class HouseholdViewModel extends ChangeNotifier {
   List<Household> _households = [];
   Household? _current;
   HouseholdMember? _membership;
+  StreamSubscription<HouseholdMember?>? _membershipSubscription;
   bool _isLoading = false;
   String? _error;
   String? _loadedUid;
+  int _membershipGeneration = 0;
 
   List<Household> get households => List.unmodifiable(_households);
   Household? get current => _current;
   HouseholdMember? get membership => _membership;
+  HouseholdRole? get role => _membership?.role;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get hasHousehold => _current != null;
-  bool get isOwner => _membership?.role == HouseholdRole.owner;
+  bool get isOwner => role == HouseholdRole.owner;
+  bool get canManageHousehold => role?.canManageHousehold ?? false;
+  bool get canWriteInventory => role?.canWriteInventory ?? false;
 
   Future<void> initializeForUser(String uid) async {
     if (_loadedUid == uid && !_isLoading) return;
@@ -45,7 +52,7 @@ class HouseholdViewModel extends ChangeNotifier {
         ..._households.where((h) => h.id != household.id),
       ];
       _current = household;
-      _membership = await _service.getMembership(household.id);
+      await _bindMembership(household.id);
       notifyListeners();
       return household;
     } catch (e) {
@@ -64,7 +71,7 @@ class HouseholdViewModel extends ChangeNotifier {
       final household = await _invites.joinHousehold(inviteCode);
       _households = await _service.listMyHouseholds();
       _current = household;
-      _membership = await _service.getMembership(household.id);
+      await _bindMembership(household.id);
       notifyListeners();
       return household;
     } catch (e) {
@@ -86,7 +93,7 @@ class HouseholdViewModel extends ChangeNotifier {
     try {
       await _service.setPreferredHousehold(selected.id);
       _current = selected;
-      _membership = await _service.getMembership(selected.id);
+      await _bindMembership(selected.id);
       notifyListeners();
     } catch (e) {
       _error = 'Failed to switch household: $e';
@@ -108,6 +115,10 @@ class HouseholdViewModel extends ChangeNotifier {
     _households = [];
     _current = null;
     _membership = null;
+    _membershipGeneration++;
+    final subscription = _membershipSubscription;
+    _membershipSubscription = null;
+    if (subscription != null) unawaited(subscription.cancel());
     _isLoading = false;
     _error = null;
     notifyListeners();
@@ -120,19 +131,49 @@ class HouseholdViewModel extends ChangeNotifier {
       final preferredId = await _service.getPreferredHouseholdId();
       _households = await _service.listMyHouseholds();
       _current = _pickCurrent(preferredId);
-      _membership = _current == null
-          ? null
-          : await _service.getMembership(_current!.id);
+      await _bindMembership(_current?.id);
       notifyListeners();
     } catch (e) {
       _households = [];
       _current = null;
-      _membership = null;
+      await _bindMembership(null);
       _error = 'Failed to load households: $e';
       notifyListeners();
     } finally {
       _setLoading(false);
     }
+  }
+
+  Future<void> _bindMembership(String? householdId) async {
+    final generation = ++_membershipGeneration;
+    await _membershipSubscription?.cancel();
+    _membershipSubscription = null;
+
+    if (householdId == null) {
+      _membership = null;
+      return;
+    }
+
+    _membership = await _service.getMembership(householdId);
+    if (generation != _membershipGeneration) return;
+
+    _membershipSubscription = _service.watchMembership(householdId).listen(
+      (membership) {
+        if (generation != _membershipGeneration || _current?.id != householdId) {
+          return;
+        }
+        _membership = membership;
+        notifyListeners();
+        if (membership == null && !_isLoading) {
+          unawaited(_reload());
+        }
+      },
+      onError: (Object error) {
+        if (generation != _membershipGeneration) return;
+        _error = 'Failed to refresh household access: $error';
+        notifyListeners();
+      },
+    );
   }
 
   Household? _pickCurrent(String? preferredId) {
