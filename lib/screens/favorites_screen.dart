@@ -115,6 +115,7 @@ class FavoritesScreen extends StatelessWidget {
           initialQuantity: favorite.quantity,
           initialCategory: favorite.category,
           initialLocation: favorite.location,
+          fromFavorite: true,
         ),
       ),
     );
