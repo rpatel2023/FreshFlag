@@ -184,12 +184,11 @@ The backend contains:
 
 Production Firebase project configuration, Firestore rules, Cloud Functions deployment, the first successful unsigned IPA build, and the Windows/SideStore bootstrap have been completed.
 
-The first physical FreshFlag install succeeded through `iloader`, but its first launch exposed a white-screen startup blocker because FCM token work was awaited before Flutter rendered. A dedicated SideStore/Personal-Team audit then hardened the zero-fee distribution profile and documented the result in `docs/SIDESTORE_COMPATIBILITY_AUDIT.md`.
+The first physical FreshFlag install succeeded through `iloader`, but its first launch exposed a white-screen startup blocker because FCM token work was awaited before Flutter rendered. A dedicated SideStore/Personal-Team audit hardened the zero-fee distribution profile, passed Flutter CI, and merged to `main` in PR #13 as `35650bab5bebb0c0fa6bdbded91f926a919dd473`. The audit is documented in `docs/SIDESTORE_COMPATIBILITY_AUDIT.md`.
 
 Current next gates are:
 
-- merge the source-validated SideStore hardening;
-- build a new SideStore-profile IPA;
+- build a new SideStore-profile IPA from current `main`;
 - update/adopt FreshFlag through SideStore without deleting the existing app;
 - verify fresh launch reaches authentication promptly;
 - physically validate Firebase email/password auth, household creation/join, camera scan/manual fallback, expiry/location persistence, realtime household sharing, item lifecycle, and each user's personal Discord reminder destination;
