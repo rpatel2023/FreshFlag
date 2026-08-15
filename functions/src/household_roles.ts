@@ -36,3 +36,7 @@ export function canRemoveMember(
   }
   return false;
 }
+
+export function canLeaveHousehold(role: HouseholdRole): boolean {
+  return role !== 'owner';
+}
