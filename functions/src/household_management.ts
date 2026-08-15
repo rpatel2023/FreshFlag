@@ -17,7 +17,7 @@ function requireUid(uid: string | undefined): string {
 }
 
 function requireHouseholdId(value: unknown): string {
-  if (typeof value !== 'string' || value.trim().isEmpty) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
     throw new HttpsError('invalid-argument', 'A household ID is required.');
   }
   return value.trim();
