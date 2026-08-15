@@ -24,6 +24,7 @@ FreshFlag is in physical two-iPhone acceptance testing using the SideStore/priva
 - Household invite creation passed on the owner account.
 - A second iPhone using a separate FreshFlag/Firebase account accepted the invite and joined the same household.
 - The second iPhone sees the same shared household inventory, validating initial two-account household loading in production.
+- **Cross-device realtime create passed:** the second iPhone added a manual item and it appeared automatically on the first iPhone's already-open Inventory screen with no refresh, navigation, or app restart.
 
 ## 2026-08-15 — Household roles and member management — SOURCE VALIDATED / MERGED
 
@@ -76,8 +77,8 @@ The current installed build therefore still has the old owner/member UI and cann
 
 Continue testing the current build before spending another macOS build:
 
-1. **Realtime inventory:** on the second iPhone, add a manual item while the first iPhone remains on Inventory. Confirm it appears automatically without refresh/navigation.
-2. Edit/consume an item from one phone and confirm the other phone updates in real time.
+1. **Realtime inventory create — PASSED:** the second iPhone added a manual item while the first iPhone remained on Inventory; it appeared automatically without refresh/navigation.
+2. **Realtime inventory state change — NEXT:** edit or consume an item from one phone and confirm the other phone updates automatically.
 3. Configure the second user's own Discord webhook and confirm its manual test delivery works.
 4. After all currently testable paths are exhausted, deploy the PR #16 backend/rules and build the next SideStore IPA.
 5. On the new build, open **Settings → Members & access** on the Owner phone and promote the spouse from Member to Admin.
