@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/grocery_item.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
+import 'item_detail_screen.dart';
 
 /// Shows expiry reminders directly from the authoritative inventory state.
 class RemindersScreen extends StatelessWidget {
@@ -123,16 +124,27 @@ class _ReminderTile extends StatelessWidget {
         ? 'Expired ${days.abs()} day${days.abs() == 1 ? '' : 's'} ago'
         : days == 0
             ? 'Expires today'
-            : 'Expires in $days day${days == 1 ? '' : 's'}';
+            : days == 1
+                ? 'Expires tomorrow'
+                : 'Expires in $days days';
 
     return Card(
       child: ListTile(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ItemDetailScreen(
+              itemId: item.id,
+              initialItem: item,
+            ),
+          ),
+        ),
         leading: Icon(
           expired ? Icons.warning_amber_rounded : Icons.schedule,
           color: expired ? AppTheme.errorRed : AppTheme.warningOrange,
         ),
         title: Text(item.name),
         subtitle: Text('$subtitle • Qty ${item.quantity}'),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
