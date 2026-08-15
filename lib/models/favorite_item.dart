@@ -41,9 +41,10 @@ class FavoriteItem {
 
   static String idForItem(GroceryItem item) {
     final barcode = item.barcode?.trim();
-    return barcode != null && barcode.isNotEmpty
-        ? 'barcode-$barcode'
-        : 'item-${item.id}';
+    if (barcode != null && barcode.isNotEmpty) return 'barcode-$barcode';
+
+    final manualIdentity = '${item.name.trim().toLowerCase()}|${item.category.trim().toLowerCase()}';
+    return 'manual-${Uri.encodeComponent(manualIdentity)}';
   }
 
   Map<String, dynamic> toMap() => {
