@@ -8,6 +8,8 @@ import 'add_item_screen.dart';
 import 'barcode_scanner_screen.dart';
 import 'item_detail_screen.dart';
 
+enum _InventoryView { active, consumed }
+
 /// Firestore-backed inventory dashboard.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -18,6 +20,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _selectedCategory = 'All';
+  _InventoryView _selectedView = _InventoryView.active;
 
   static const _categories = <String>[
     'All',
@@ -35,8 +38,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final inventory = context.watch<GroceryViewModel>();
-    final visibleItems = inventory.items.where((item) {
-      if (item.isConsumed) return false;
+    final activeItems = inventory.items.where((item) => !item.isConsumed).toList();
+    final consumedItems = inventory.items.where((item) => item.isConsumed).toList();
+    final sourceItems = _selectedView == _InventoryView.active
+        ? activeItems
+        : consumedItems;
+    final visibleItems = sourceItems.where((item) {
       return _selectedCategory == 'All' || item.category == _selectedCategory;
     }).toList();
 
@@ -76,8 +83,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: AppTheme.spacingL),
-            _InventorySummary(inventory: inventory),
+            _InventorySummary(
+              inventory: inventory,
+              activeCount: activeItems.length,
+              consumedCount: consumedItems.length,
+            ),
             const SizedBox(height: AppTheme.spacingL),
+            SegmentedButton<_InventoryView>(
+              segments: [
+                ButtonSegment(
+                  value: _InventoryView.active,
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: Text('Active (${activeItems.length})'),
+                ),
+                ButtonSegment(
+                  value: _InventoryView.consumed,
+                  icon: const Icon(Icons.history),
+                  label: Text('Consumed (${consumedItems.length})'),
+                ),
+              ],
+              selected: {_selectedView},
+              onSelectionChanged: (selection) {
+                setState(() => _selectedView = selection.first);
+              },
+            ),
+            const SizedBox(height: AppTheme.spacingM),
             SizedBox(
               height: 42,
               child: ListView.separated(
@@ -109,7 +139,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onRetry: inventory.loadItems,
               )
             else if (visibleItems.isEmpty)
-              const _EmptyState()
+              _EmptyState(consumedView: _selectedView == _InventoryView.consumed)
             else
               ...visibleItems.map(
                 (item) => Padding(
@@ -215,9 +245,15 @@ class _QuickAction extends StatelessWidget {
 }
 
 class _InventorySummary extends StatelessWidget {
-  const _InventorySummary({required this.inventory});
+  const _InventorySummary({
+    required this.inventory,
+    required this.activeCount,
+    required this.consumedCount,
+  });
 
   final GroceryViewModel inventory;
+  final int activeCount;
+  final int consumedCount;
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +263,7 @@ class _InventorySummary extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _SummaryValue(label: 'Items', value: inventory.items.length),
+            _SummaryValue(label: 'Active', value: activeCount),
             _SummaryValue(
               label: 'Expiring',
               value: inventory.expiringSoonItems.length,
@@ -236,6 +272,7 @@ class _InventorySummary extends StatelessWidget {
               label: 'Expired',
               value: inventory.expiredItems.length,
             ),
+            _SummaryValue(label: 'Consumed', value: consumedCount),
           ],
         ),
       ),
@@ -279,11 +316,13 @@ class _InventoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final days = item.daysUntilExpiry;
-    final status = item.isExpired
-        ? 'Expired'
-        : days == 0
-            ? 'Expires today'
-            : 'Expires in $days day${days == 1 ? '' : 's'}';
+    final status = item.isConsumed
+        ? 'Consumed'
+        : item.isExpired
+            ? 'Expired'
+            : days == 0
+                ? 'Expires today'
+                : 'Expires in $days day${days == 1 ? '' : 's'}';
     final scheme = Theme.of(context).colorScheme;
 
     return Card(
@@ -292,7 +331,7 @@ class _InventoryCard extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: scheme.primaryContainer,
           child: Icon(
-            Icons.inventory_2_outlined,
+            item.isConsumed ? Icons.history : Icons.inventory_2_outlined,
             color: scheme.onPrimaryContainer,
           ),
         ),
@@ -313,19 +352,29 @@ class _InventoryCard extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({required this.consumedView});
+
+  final bool consumedView;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(AppTheme.spacingXL),
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.spacingXL),
       child: Column(
         children: [
-          Icon(Icons.inventory_2_outlined, size: 64),
-          SizedBox(height: AppTheme.spacingM),
-          Text('No items yet'),
-          SizedBox(height: AppTheme.spacingS),
-          Text('Add an item manually or scan a barcode to get started.'),
+          Icon(
+            consumedView ? Icons.history : Icons.inventory_2_outlined,
+            size: 64,
+          ),
+          const SizedBox(height: AppTheme.spacingM),
+          Text(consumedView ? 'No consumed items' : 'No active items'),
+          const SizedBox(height: AppTheme.spacingS),
+          Text(
+            consumedView
+                ? 'Items you mark consumed will remain available here to restore.'
+                : 'Add an item manually or scan a barcode to get started.',
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
