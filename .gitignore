@@ -33,6 +33,10 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Node / Firebase generated artifacts
+**/node_modules/
+/functions/lib/
+
 # Symbolication related
 app.*.symbols
 
