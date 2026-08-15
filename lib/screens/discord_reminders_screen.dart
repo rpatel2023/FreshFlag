@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/app_brand.dart';
 import '../services/discord_reminder_service.dart';
 import '../utils/app_theme.dart';
 
@@ -93,8 +94,8 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: AppTheme.spacingS),
-                  const Text(
-                    'In Discord, create an incoming webhook for the private channel you want FreshFlag to notify, then paste its URL here. This setting belongs only to your FreshFlag account, and FreshFlag never displays the saved URL again.',
+                  Text(
+                    'In Discord, create an incoming webhook for the private channel you want ${AppBrand.name} to notify, then paste its URL here. This setting belongs only to your ${AppBrand.name} account, and ${AppBrand.name} never displays the saved URL again.',
                   ),
                   const SizedBox(height: AppTheme.spacingM),
                   TextField(
