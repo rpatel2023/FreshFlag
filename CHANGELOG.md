@@ -18,7 +18,7 @@ FreshFlag is in physical two-iPhone acceptance testing using the SideStore/priva
 - The installed build then made the consumed item unreachable after backing out because the dashboard hid consumed items. PR #15 fixed this source-side by adding explicit Active / Consumed views and separate counts.
 - PR #15 merged to `main` as `55672e641a1365a4e4604c11b66512b5da053107`. The currently installed physical build predates this fix.
 - The Reminders screen correctly surfaced a due Heinz Baked Beans item while excluding a later-expiring item.
-- The personal Discord integration connected successfully and its manual test action delivered a message.
+- The owner's personal Discord integration connected successfully and its manual test action delivered a message.
 - A real scheduled expiry reminder for Heinz Baked Beans was delivered by the production backend to Discord, validating the SideStore reminder path without APNs/FCM.
 - That real reminder exposed wording `expires in 1 days`; the backend and client template renderers now normalize this to `1 day` in PR #16.
 - Household invite creation passed on the owner account.
@@ -26,6 +26,7 @@ FreshFlag is in physical two-iPhone acceptance testing using the SideStore/priva
 - The second iPhone sees the same shared household inventory, validating initial two-account household loading in production.
 - **Cross-device realtime create passed:** the second iPhone added a manual item and it appeared automatically on the first iPhone's already-open Inventory screen with no refresh, navigation, or app restart.
 - **Cross-device realtime consume/restore passed:** consuming the shared test item on the second iPhone removed it automatically from the first iPhone's active inventory, and restoring it on the second iPhone made it reappear automatically on the first iPhone without refresh/navigation.
+- **Second-user personal Discord integration passed:** the second FreshFlag user configured their own Discord webhook and the manual test message arrived successfully, proving Discord configuration is independent per Firebase user and does not require household-owner permission.
 
 ## 2026-08-15 — Household roles and member management — SOURCE VALIDATED / MERGED
 
@@ -80,13 +81,13 @@ Continue testing the current build before spending another macOS build:
 
 1. **Realtime inventory create — PASSED:** the second iPhone added a manual item while the first iPhone remained on Inventory; it appeared automatically without refresh/navigation.
 2. **Realtime inventory consume/restore — PASSED:** consuming the shared item on the second iPhone removed it automatically from the first iPhone's active inventory, and restoring it made it reappear automatically.
-3. **Second-user Discord integration — NEXT:** configure the second user's own Discord webhook and confirm its manual test delivery works.
-4. After all currently testable paths are exhausted, deploy the PR #16 backend/rules and build the next SideStore IPA.
-5. On the new build, open **Settings → Members & access** on the Owner phone and promote the spouse from Member to Admin.
-6. Confirm the spouse's already-open app changes to Admin without a restart and can manage reminder rules and invites.
-7. Temporarily set a test account to Guest and confirm inventory is genuinely read-only, then restore the intended role.
-8. Re-test Active / Consumed navigation and Restore using the PR #15 UI.
-9. Confirm a due scheduled reminder reaches each configured user's personal Discord destination.
+3. **Second-user Discord integration — PASSED:** the second user's independently configured personal Discord webhook received its manual test message.
+4. **Two-recipient scheduled Discord fanout — NEXT:** create one temporary due rule/item and verify the scheduled worker sends the same household reminder independently to both users' configured Discord destinations.
+5. After all currently testable paths are exhausted, deploy the PR #16 backend/rules and build the next SideStore IPA.
+6. On the new build, open **Settings → Members & access** on the Owner phone and promote the spouse from Member to Admin.
+7. Confirm the spouse's already-open app changes to Admin without a restart and can manage reminder rules and invites.
+8. Temporarily set a test account to Guest and confirm inventory is genuinely read-only, then restore the intended role.
+9. Re-test Active / Consumed navigation and Restore using the PR #15 UI.
 10. Relaunch both apps and verify auth, household selection, persisted inventory, and SideStore refresh remain healthy.
 
 Do not expand into unrelated features until this two-device acceptance sequence is stable.
