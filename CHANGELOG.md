@@ -412,7 +412,7 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
 - First physical launch did not reach Flutter UI: FreshFlag remained on the native white launch screen for more than one minute.
 - Code inspection identified a release-path bug: `main.dart` awaited `FCMService.initialize()` before `runApp()`, and that initialization awaited Apple/FCM token work. This is unsafe for Personal-Team/SideStore signing and also violates Firebase guidance not to make blocking token acquisition part of startup.
 
-### SideStore / Apple Personal-Team compatibility audit — SOURCE VALIDATED
+### SideStore / Apple Personal-Team compatibility audit — SOURCE VALIDATED AND MERGED
 
 Branch: `fix/nonblocking-ios-startup`; PR #13.
 
@@ -442,4 +442,6 @@ Branch: `fix/nonblocking-ios-startup`; PR #13.
 - Added durable `docs/SIDESTORE_COMPATIBILITY_AUDIT.md` and rewrote `docs/sideload.md` around this distribution contract and SideStore-owned updates.
 - PR #13 audit commit `ac2c1084c67c6929923f61f03dd4be691c2a118c` passed Flutter CI run `31854341153`: dependency/lockfile checks, **21 tests**, analyzer, and Linux release build all succeeded.
 - Final shell guard commit `1336c974ea628645cfe8751411989dafc26bec44` passed Flutter CI run `31854522741`: dependency/lockfile checks, **21 tests**, analyzer, and Linux release build all succeeded.
-- No new manual macOS/IPA workflow was triggered during the audit. Next gate is merge PR #13, then build one new SideStore-profile IPA and install/update it through SideStore without deleting the existing FreshFlag app.
+- PR #13 merged to `main` as `35650bab5bebb0c0fa6bdbded91f926a919dd473`.
+- Post-merge architecture/project-context synchronization commits: `9a33647f6d903d8f6c76fd4f3ce718232a44f2c2` and `f9cacc060c2a78839b4966c1b0216455cb63c69b`.
+- No new manual macOS/IPA workflow was triggered during the audit. Next gate: run **Build SideStore IPA** manually from current `main`, then install/update that IPA through SideStore without deleting the existing FreshFlag app.
