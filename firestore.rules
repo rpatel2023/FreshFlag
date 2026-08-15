@@ -26,9 +26,24 @@ service cloud.firestore {
       return signedIn() && exists(memberPath(householdId, request.auth.uid));
     }
 
+    function householdRole(householdId) {
+      return isHouseholdMember(householdId)
+        ? get(memberPath(householdId, request.auth.uid)).data.role
+        : null;
+    }
+
     function isHouseholdOwner(householdId) {
-      return isHouseholdMember(householdId) &&
-        get(memberPath(householdId, request.auth.uid)).data.role == 'owner';
+      return householdRole(householdId) == 'owner';
+    }
+
+    function isHouseholdManager(householdId) {
+      let role = householdRole(householdId);
+      return role == 'owner' || role == 'admin';
+    }
+
+    function canWriteInventory(householdId) {
+      let role = householdRole(householdId);
+      return role == 'owner' || role == 'admin' || role == 'member';
     }
 
     function validInvite(inviteId, householdId) {
@@ -107,31 +122,33 @@ service cloud.firestore {
             validInvite(request.resource.data.inviteId, householdId)
           );
 
-        allow update, delete: if isHouseholdOwner(householdId);
+        // Role changes/removals are backend-managed so the member document and
+        // household memberUids array cannot drift apart.
+        allow update, delete: if false;
       }
 
       match /items/{itemId} {
         allow read: if isHouseholdMember(householdId);
 
-        allow create: if isHouseholdMember(householdId) &&
+        allow create: if canWriteInventory(householdId) &&
           request.resource.data.householdId == householdId &&
           request.resource.data.createdByUid == request.auth.uid &&
           request.resource.data.updatedByUid == request.auth.uid;
 
-        allow update: if isHouseholdMember(householdId) &&
+        allow update: if canWriteInventory(householdId) &&
           request.resource.data.householdId == householdId &&
           request.resource.data.householdId == resource.data.householdId &&
           request.resource.data.createdByUid == resource.data.createdByUid &&
           request.resource.data.updatedByUid == request.auth.uid;
 
-        allow delete: if isHouseholdMember(householdId);
+        allow delete: if canWriteInventory(householdId);
       }
 
       match /notificationRules/{ruleId} {
         allow read: if isHouseholdMember(householdId);
-        allow create, update: if isHouseholdOwner(householdId) &&
+        allow create, update: if isHouseholdManager(householdId) &&
           validReminderRule(request.resource.data);
-        allow delete: if isHouseholdOwner(householdId);
+        allow delete: if isHouseholdManager(householdId);
       }
     }
 
@@ -142,25 +159,22 @@ service cloud.firestore {
       allow list: if false;
 
       allow create: if signedIn() &&
-        isHouseholdOwner(request.resource.data.householdId) &&
+        isHouseholdManager(request.resource.data.householdId) &&
         request.resource.data.createdByUid == request.auth.uid &&
         request.resource.data.status == 'active' &&
         request.resource.data.expiresAt > request.time;
 
-      allow update, delete: if isHouseholdOwner(resource.data.householdId);
+      allow update, delete: if isHouseholdManager(resource.data.householdId);
     }
 
-    // Server-managed per-user integration secrets. Clients interact only through callable functions.
     match /userIntegrations/{uid} {
       allow read, write: if false;
     }
 
-    // Keep the abandoned household-scoped collection denied if old development data ever exists.
     match /householdIntegrations/{householdId} {
       allow read, write: if false;
     }
 
-    // Backend-only delivery ledger. Admin SDK bypasses client security rules.
     match /notificationDeliveries/{deliveryId} {
       allow read, write: if false;
     }
