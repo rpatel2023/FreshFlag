@@ -15,7 +15,7 @@ class FavoritesScreen extends StatelessWidget {
     final canWriteInventory = context.watch<HouseholdViewModel>().canWriteInventory;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Favorites')),
+      appBar: AppBar(title: const Text('Favourites')),
       body: StreamBuilder<List<FavoriteItem>>(
         stream: FavoriteService.instance.watchFavorites(),
         builder: (context, snapshot) {
@@ -25,7 +25,7 @@ class FavoritesScreen extends StatelessWidget {
           if (snapshot.hasError) {
             return const _FavoritesMessage(
               icon: Icons.error_outline,
-              title: 'Could not load favorites',
+              title: 'Could not load favourites',
               body: 'Pull down or reopen this screen to try again.',
             );
           }
@@ -34,7 +34,7 @@ class FavoritesScreen extends StatelessWidget {
           if (favorites.isEmpty) {
             return const _FavoritesMessage(
               icon: Icons.star_outline,
-              title: 'No favorites yet',
+              title: 'No favourites yet',
               body: 'Open an inventory item and tap the star to save products you buy often.',
             );
           }
@@ -63,7 +63,7 @@ class FavoritesScreen extends StatelessWidget {
                         title: Text(favorite.name),
                         subtitle: Text(_subtitle(favorite)),
                         trailing: IconButton(
-                          tooltip: 'Remove favorite',
+                          tooltip: 'Remove favourite',
                           icon: const Icon(Icons.star),
                           onPressed: () => _remove(context, favorite),
                         ),
@@ -129,7 +129,7 @@ class FavoritesScreen extends StatelessWidget {
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not remove favorite.')),
+        const SnackBar(content: Text('Could not remove favourite.')),
       );
     }
   }
