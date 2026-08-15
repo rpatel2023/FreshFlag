@@ -9,11 +9,12 @@ import '../services/fcm_service.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 import '../viewmodels/household_viewmodel.dart';
 import 'dashboard_screen.dart';
+import 'favorites_screen.dart';
 import 'item_detail_screen.dart';
 import 'reminders_screen.dart';
 import 'settings_screen.dart';
 
-/// Main authenticated FreshFlag shell.
+/// Main authenticated Fresh Flag shell.
 class MainAppScreen extends StatefulWidget {
   const MainAppScreen({super.key});
 
@@ -30,6 +31,7 @@ class _MainAppScreenState extends State<MainAppScreen> {
   static const _screens = <Widget>[
     DashboardScreen(),
     RemindersScreen(),
+    FavoritesScreen(),
     SettingsScreen(),
   ];
 
@@ -84,6 +86,11 @@ class _MainAppScreenState extends State<MainAppScreen> {
             icon: Icon(Icons.notifications_outlined),
             selectedIcon: Icon(Icons.notifications),
             label: 'Reminders',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.star_outline),
+            selectedIcon: Icon(Icons.star),
+            label: 'Favorites',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
