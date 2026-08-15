@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_brand.dart';
 import '../models/household_invite.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/household_viewmodel.dart';
@@ -31,7 +32,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
   Widget build(BuildContext context) {
     final household = context.watch<HouseholdViewModel>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Set up FreshFlag')),
+      appBar: AppBar(title: Text('Set up ${AppBrand.name}')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppTheme.spacingL),
@@ -83,7 +84,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                         const SizedBox(height: AppTheme.spacingM),
                         ElevatedButton(
                           onPressed: household.isLoading ? null : _join,
-                          child: const Text('Join Household'),
+                          child: const Text('Join household'),
                         ),
                       ],
                     ),
@@ -139,7 +140,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                     const SizedBox(height: AppTheme.spacingM),
                     ElevatedButton(
                       onPressed: household.isLoading ? null : _create,
-                      child: const Text('Create Household'),
+                      child: const Text('Create household'),
                     ),
                   ],
                 ),
