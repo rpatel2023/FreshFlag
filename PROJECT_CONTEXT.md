@@ -546,12 +546,12 @@ Completed prerequisites:
 - Windows Apple device stack and initial SideStore bootstrap proven on the first target iPhone;
 - first FreshFlag IPA successfully signed/installed through `iloader`;
 - first-device white-screen failure diagnosed as FCM-before-`runApp()` behavior;
-- SideStore/Personal-Team codebase audit completed and source-validated; zero-fee profile explicitly disables APNs/FCM.
+- SideStore/Personal-Team codebase audit completed and source-validated; zero-fee profile explicitly disables APNs/FCM;
+- PR #13 SideStore hardening merged to `main` as `35650bab5bebb0c0fa6bdbded91f926a919dd473`.
 
 Remaining before the first private household release:
 
-- merge the SideStore hardening PR;
-- build a new IPA using `FRESHFLAG_SIDESTORE=true` and all capability guards;
+- build a new IPA from current `main` using `FRESHFLAG_SIDESTORE=true` and all capability guards;
 - update/adopt FreshFlag through SideStore without deleting the existing installation;
 - prove FreshFlag reaches authentication promptly on the physical iPhone;
 - prove email/password signup/login and session persistence;
