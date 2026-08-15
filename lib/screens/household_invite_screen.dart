@@ -36,7 +36,7 @@ class _HouseholdInviteScreenState extends State<HouseholdInviteScreen> {
       body: ListView(
         padding: const EdgeInsets.all(AppTheme.spacingL),
         children: [
-          if (current != null && household.isOwner) ...[
+          if (current != null && household.canManageHousehold) ...[
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -112,7 +112,7 @@ class _HouseholdInviteScreenState extends State<HouseholdInviteScreen> {
                   ),
                   const SizedBox(height: AppTheme.spacingS),
                   const Text(
-                    'Enter the invite code shared by that household owner.',
+                    'Enter the invite code shared by that household owner or admin.',
                   ),
                   const SizedBox(height: AppTheme.spacingM),
                   TextField(
@@ -153,7 +153,7 @@ class _HouseholdInviteScreenState extends State<HouseholdInviteScreen> {
   Future<void> _createInvite() async {
     final household = context.read<HouseholdViewModel>();
     final current = household.current;
-    if (current == null || !household.isOwner) return;
+    if (current == null || !household.canManageHousehold) return;
     await _run(() async {
       final invite = await InviteService.instance.createInvite(current.id);
       if (mounted) setState(() => _invite = invite);
