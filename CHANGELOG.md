@@ -27,6 +27,7 @@ FreshFlag is in physical two-iPhone acceptance testing using the SideStore/priva
 - **Cross-device realtime create passed:** the second iPhone added a manual item and it appeared automatically on the first iPhone's already-open Inventory screen with no refresh, navigation, or app restart.
 - **Cross-device realtime consume/restore passed:** consuming the shared test item on the second iPhone removed it automatically from the first iPhone's active inventory, and restoring it on the second iPhone made it reappear automatically on the first iPhone without refresh/navigation.
 - **Second-user personal Discord integration passed:** the second FreshFlag user configured their own Discord webhook and the manual test message arrived successfully, proving Discord configuration is independent per Firebase user and does not require household-owner permission.
+- **Two-recipient scheduled Discord fanout passed:** one real scheduled household reminder was independently delivered to both configured users' Discord destinations, validating production scheduler fanout and per-recipient delivery across the two-user household.
 
 ## 2026-08-15 — Household roles and member management — SOURCE VALIDATED / MERGED
 
@@ -67,27 +68,23 @@ Validation on final PR #16 head `085dc03bd62fbec2a76ff098b8f206f4ac83d0c5`:
 
 The source merge does **not** by itself update the two installed iPhones or the production Firebase backend.
 
-Before physically validating the new role-management UI:
-
-1. Deploy the updated Firestore rules and new/changed Cloud Functions from current `main` to Firebase project `freshflag`.
-2. Finish any remaining tests that can still be performed on the currently installed build so another IPA can batch all discovered fixes.
-3. When ready, run the manual **Build SideStore IPA** workflow from current `main` and update both iPhones without deleting the existing app data.
+All high-value acceptance tests available on the pre-PR15/PR16 installed build are now complete. The next gate is production deployment of current-main Firestore rules and Cloud Functions, followed by one batched SideStore IPA build containing PR #15 and PR #16.
 
 The current installed build therefore still has the old owner/member UI and cannot yet promote the second user to Admin.
 
 ## Next physical acceptance sequence
 
-Continue testing the current build before spending another macOS build:
-
-1. **Realtime inventory create — PASSED:** the second iPhone added a manual item while the first iPhone remained on Inventory; it appeared automatically without refresh/navigation.
-2. **Realtime inventory consume/restore — PASSED:** consuming the shared item on the second iPhone removed it automatically from the first iPhone's active inventory, and restoring it made it reappear automatically.
-3. **Second-user Discord integration — PASSED:** the second user's independently configured personal Discord webhook received its manual test message.
-4. **Two-recipient scheduled Discord fanout — NEXT:** create one temporary due rule/item and verify the scheduled worker sends the same household reminder independently to both users' configured Discord destinations.
-5. After all currently testable paths are exhausted, deploy the PR #16 backend/rules and build the next SideStore IPA.
-6. On the new build, open **Settings → Members & access** on the Owner phone and promote the spouse from Member to Admin.
-7. Confirm the spouse's already-open app changes to Admin without a restart and can manage reminder rules and invites.
-8. Temporarily set a test account to Guest and confirm inventory is genuinely read-only, then restore the intended role.
-9. Re-test Active / Consumed navigation and Restore using the PR #15 UI.
-10. Relaunch both apps and verify auth, household selection, persisted inventory, and SideStore refresh remain healthy.
+1. **Realtime inventory create — PASSED.**
+2. **Realtime inventory consume/restore — PASSED.**
+3. **Second-user Discord integration — PASSED.**
+4. **Two-recipient scheduled Discord fanout — PASSED.**
+5. Delete the temporary `Two user reminder test` household rule so it cannot affect future expiry events.
+6. **NEXT:** deploy the updated Firestore rules and Cloud Functions from current `main` to Firebase project `freshflag`.
+7. Run the manual **Build SideStore IPA** workflow from current `main` and update both iPhones without deleting the existing FreshFlag app.
+8. On the new build, open **Settings → Members & access** on the Owner phone and promote the spouse from Member to Admin.
+9. Confirm the spouse's already-open app changes to Admin without a restart and can manage reminder rules and invites.
+10. Temporarily set a test account to Guest and confirm inventory is genuinely read-only, then restore the intended role.
+11. Re-test Active / Consumed navigation and Restore using the PR #15 UI.
+12. Relaunch both apps and verify auth, household selection, persisted inventory, Discord configuration, and SideStore refresh remain healthy.
 
 Do not expand into unrelated features until this two-device acceptance sequence is stable.
