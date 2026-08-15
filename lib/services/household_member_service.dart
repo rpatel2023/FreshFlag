@@ -52,4 +52,10 @@ class HouseholdMemberService {
       'uid': uid,
     });
   }
+
+  Future<void> leaveHousehold(String householdId) async {
+    await _functions.httpsCallable('leaveHousehold').call({
+      'householdId': householdId,
+    });
+  }
 }
