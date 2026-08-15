@@ -25,6 +25,7 @@ FreshFlag is in physical two-iPhone acceptance testing using the SideStore/priva
 - A second iPhone using a separate FreshFlag/Firebase account accepted the invite and joined the same household.
 - The second iPhone sees the same shared household inventory, validating initial two-account household loading in production.
 - **Cross-device realtime create passed:** the second iPhone added a manual item and it appeared automatically on the first iPhone's already-open Inventory screen with no refresh, navigation, or app restart.
+- **Cross-device realtime consume/restore passed:** consuming the shared test item on the second iPhone removed it automatically from the first iPhone's active inventory, and restoring it on the second iPhone made it reappear automatically on the first iPhone without refresh/navigation.
 
 ## 2026-08-15 — Household roles and member management — SOURCE VALIDATED / MERGED
 
@@ -78,8 +79,8 @@ The current installed build therefore still has the old owner/member UI and cann
 Continue testing the current build before spending another macOS build:
 
 1. **Realtime inventory create — PASSED:** the second iPhone added a manual item while the first iPhone remained on Inventory; it appeared automatically without refresh/navigation.
-2. **Realtime inventory state change — NEXT:** edit or consume an item from one phone and confirm the other phone updates automatically.
-3. Configure the second user's own Discord webhook and confirm its manual test delivery works.
+2. **Realtime inventory consume/restore — PASSED:** consuming the shared item on the second iPhone removed it automatically from the first iPhone's active inventory, and restoring it made it reappear automatically.
+3. **Second-user Discord integration — NEXT:** configure the second user's own Discord webhook and confirm its manual test delivery works.
 4. After all currently testable paths are exhausted, deploy the PR #16 backend/rules and build the next SideStore IPA.
 5. On the new build, open **Settings → Members & access** on the Owner phone and promote the spouse from Member to Admin.
 6. Confirm the spouse's already-open app changes to Admin without a restart and can manage reminder rules and invites.
