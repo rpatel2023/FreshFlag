@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_brand.dart';
 import '../../utils/app_theme.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 
@@ -52,7 +53,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          'Join FreshFlag',
+                          'Join ${AppBrand.name}',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.headlineLarge?.copyWith(
                             color: theme.colorScheme.primary,
@@ -161,7 +162,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Text('Create Account'),
+                                : const Text('Create account'),
                           ),
                         ),
                       ],
