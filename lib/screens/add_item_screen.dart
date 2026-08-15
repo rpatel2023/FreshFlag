@@ -14,6 +14,7 @@ class AddItemScreen extends StatefulWidget {
     this.initialQuantity,
     this.initialCategory,
     this.initialLocation,
+    this.fromFavorite = false,
     this.editItem,
   });
 
@@ -22,6 +23,7 @@ class AddItemScreen extends StatefulWidget {
   final int? initialQuantity;
   final String? initialCategory;
   final String? initialLocation;
+  final bool fromFavorite;
   final GroceryItem? editItem;
 
   @override
@@ -107,17 +109,21 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   Card(
                     child: ListTile(
                       leading: Icon(
-                        widget.initialName == null
-                            ? Icons.qr_code
-                            : Icons.check_circle_outline,
-                        color: widget.initialName == null
-                            ? null
-                            : Theme.of(context).colorScheme.primary,
+                        widget.fromFavorite
+                            ? Icons.star
+                            : widget.initialName == null
+                                ? Icons.qr_code
+                                : Icons.check_circle_outline,
+                        color: widget.fromFavorite || widget.initialName != null
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
                       ),
                       title: Text(
-                        widget.initialName == null
-                            ? 'Scanned barcode'
-                            : 'Product recognized',
+                        widget.fromFavorite
+                            ? 'Favourite product'
+                            : widget.initialName == null
+                                ? 'Scanned barcode'
+                                : 'Product recognized',
                       ),
                       subtitle: Text(
                         widget.initialName == null
