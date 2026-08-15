@@ -445,3 +445,24 @@ Branch: `fix/nonblocking-ios-startup`; PR #13.
 - PR #13 merged to `main` as `35650bab5bebb0c0fa6bdbded91f926a919dd473`.
 - Post-merge architecture/project-context synchronization commits: `9a33647f6d903d8f6c76fd4f3ce718232a44f2c2` and `f9cacc060c2a78839b4966c1b0216455cb63c69b`.
 - No new manual macOS/IPA workflow was triggered during the audit. Next gate: run **Build SideStore IPA** manually from current `main`, then install/update that IPA through SideStore without deleting the existing FreshFlag app.
+
+### SideStore iOS build attempt #3 + physical startup validation — PASSED
+
+- Manual SideStore workflow run `31855110334` built `main` at `d54c6af062d739f4347a079105ee6958f9c8465d` using macOS 14 / Xcode 15.4 and the dedicated `FRESHFLAG_SIDESTORE=true` profile.
+- Every guarded step passed: dependency resolution, lockfile reproducibility, **21 SideStore-profile tests**, analyzer, SideStore capability-budget checks, unsigned iOS compilation, IPA assembly, and artifact upload.
+- Artifact `FreshFlag-SideStore-IPA` ID `9238943916`: **22,869,046 bytes**, SHA-256 `38454362aa995af211f45de1d0a154b0b79a595b56531610d491cdd08008bed3`, retained until `2026-08-22T01:08:37Z`.
+- Installed the hardened `FreshFlag-unsigned.ipa` over the existing copy with iLoader over USB; iLoader reported success.
+- After disconnecting USB and force-closing/reopening FreshFlag, the app reached the Sign In page promptly. The original white-launch-screen blocker is therefore **physically resolved**.
+
+### Physical Firebase Auth signup — PIGEON BLOCKER FOUND / SOURCE FIX MERGED
+
+- First real Create Account attempt reached native Firebase Auth but failed while decoding the native response with: `type 'List<Object?>' is not a subtype of type 'PigeonUserDetails?' in type cast`.
+- FreshFlag's signup wrapper is ordinary `FirebaseAuth.instance.createUserWithEmailAndPassword`; no application-level Pigeon casting is involved.
+- Dependency audit found the lockfile paired `firebase_auth 4.16.0` with `firebase_auth_platform_interface 7.3.0`.
+- FlutterFire's own changelogs show `firebase_auth_platform_interface 7.3.0` moved to Pigeon 19 while the native `firebase_auth` plugin did not make the matching Pigeon 19 transition until `firebase_auth 4.20.0`; the observed raw-list/object cast is consistent with that generated-channel wire-format skew.
+- Chose a narrow compatibility repair rather than a broad Firebase generation upgrade: `firebase_auth` is now constrained to `^4.20.0`, keeping `firebase_core 2.32.0`, the current SideStore/Xcode 15.4 compatibility envelope, and all unrelated FlutterFire packages stable.
+- PR #14 initial CI run `31856744643` resolved exactly the intended dependency delta and stopped at the expected stale-lockfile reproducibility gate.
+- Regenerated `pubspec.lock` from that resolver output; final lock resolves `firebase_auth 4.20.0`, `firebase_auth_platform_interface 7.3.0`, `firebase_auth_web 5.12.0`, `firebase_core_web 2.17.5`, and `web 0.5.1`.
+- PR #14 final Flutter CI run `31856925385`: **success** — dependency resolution, lockfile reproducibility, **21 tests**, analyzer, and Linux release build all passed.
+- PR #14 merged to `main` as `1499cbb0547c0be85f88a969d8093c59c6aaecc6`.
+- Physical signup/sign-in must now be retested with a newly built SideStore IPA. The first failed Create Account call may already have created the Firebase user server-side before response decoding failed; if the same address later reports already-in-use, test Sign In with the same password rather than treating that as a new auth failure.
