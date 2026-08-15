@@ -90,7 +90,7 @@ class _MainAppScreenState extends State<MainAppScreen> {
           NavigationDestination(
             icon: Icon(Icons.star_outline),
             selectedIcon: Icon(Icons.star),
-            label: 'Favorites',
+            label: 'Favourites',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
