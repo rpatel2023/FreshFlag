@@ -7,7 +7,7 @@ import '../utils/app_theme.dart';
 import 'add_item_screen.dart';
 
 /// Scans a packaged-food barcode, recognizes it through Open Food Facts, and
-/// hands the barcode plus any recognized display name to Add Item.
+/// hands the barcode plus any recognized display name to Add item.
 class BarcodeScannerScreen extends StatefulWidget {
   const BarcodeScannerScreen({super.key});
 
@@ -38,7 +38,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Scan Barcode'),
+        title: const Text('Scan barcode'),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         actions: [
