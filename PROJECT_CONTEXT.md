@@ -7,7 +7,7 @@
 > Product: shared household food-expiry tracking  
 > Implementation history: `CHANGELOG.md`  
 > Implemented architecture: `ARCHITECTURE.md`  
-> iOS distribution procedure: `docs/testflight.md`
+> Active iOS distribution procedure: `docs/sideload.md`
 
 This document defines what FreshFlag is and the constraints future implementation must preserve. When source code and this document disagree about product intent, treat this document as authoritative unless a deliberate decision is recorded in `CHANGELOG.md` and reflected here.
 
@@ -43,8 +43,8 @@ The MVP is complete only when this scenario works reliably:
 9. The item appears on both phones without manual refresh.
 10. The household has a custom reminder rule.
 11. The backend evaluates the rule in the household timezone.
-12. Each participating household member can receive the intended reminder through at least one production-capable personal channel; Discord is the reliable zero-fee fallback, while FCM/APNs remains supported where the signing path allows it.
-13. When native push is available, tapping the alert opens the correct household item.
+12. Each participating household member can receive the intended reminder through at least one production-capable personal channel; per-user Discord is the supported channel for the zero-fee SideStore profile.
+13. In a future standard/paid Apple distribution profile, FCM/APNs may also deliver reminders and notification taps must open the correct household item.
 14. Either member marks the item consumed/removed.
 15. Both phones reflect the updated shared state.
 
@@ -58,7 +58,7 @@ MVP authentication:
 - email/password;
 - persistent signed-in session;
 - sign out;
-- one or more registered devices per user.
+- one or more devices per user.
 
 Additional providers such as Sign in with Apple or Google are post-MVP unless a later distribution path forces a change.
 
@@ -241,17 +241,27 @@ Firestore items + household rules
        +--------------------+
        |                    |
        v                    v
-    FCM/APNs            personal Discord webhook
-    device push         if that member enabled it
+ FCM/APNs (standard)    personal Discord webhook
+ paid/profile path      if that member enabled it
 ```
 
-Discord is a parallel personal reminder channel, not merely an error fallback after an FCM API call. A successful FCM send acknowledgement does not prove a free-sideloaded iPhone displayed the notification.
+Discord is a parallel personal reminder channel, not merely an error fallback after an FCM API call.
+
+For the zero-fee SideStore/free-Apple-Account distribution profile, remote APNs/FCM is deliberately disabled by product policy. The build uses:
+
+```text
+--dart-define=FRESHFLAG_SIDESTORE=true
+```
+
+That profile must not register or initialize FCM, generate/request FCM tokens, write device tokens, subscribe to FCM notification taps, or let push state block startup/authentication/household loading. `FirebaseMessagingAutoInitEnabled` remains false in the iOS plist. The Push notifications Settings control is disabled and explains that Discord is the supported reminder path.
+
+A future standard/paid Apple distribution profile may omit the SideStore define and use the retained FCM path only after the required Apple Push Notifications/background capabilities and APNs credentials are configured.
 
 Do not reintroduce client-only expiry scheduling as the authoritative reminder path.
 
-## Discord reminder fallback
+## Discord reminder channel
 
-For the zero-fee private distribution path, Discord is the reliable reminder channel when Apple push entitlements are unavailable or unreliable under free signing.
+For the zero-fee private distribution profile, Discord is the supported production reminder channel.
 
 Properties:
 
@@ -332,7 +342,7 @@ Changing an item's expiry naturally yields a new identity while the old expiry n
 
 ## Device registration
 
-Device registrations live under:
+For a standard/paid profile that enables FCM, device registrations live under:
 
 ```text
 users/{uid}/devices/{deviceId}
@@ -347,6 +357,8 @@ A registration stores at least:
 
 The app refreshes token state and the backend removes invalid/stale registrations where practical. Regular users must never read or modify other users' device registrations.
 
+The SideStore profile does not create/update FCM device registrations.
+
 ## Notification tap behavior
 
 Expiry FCM data must include at least:
@@ -359,7 +371,7 @@ Expiry FCM data must include at least:
 }
 ```
 
-Desired behavior:
+Desired behavior in the standard/paid profile:
 
 ```text
 notification tap
@@ -369,7 +381,7 @@ notification tap
   -> open exact item detail
 ```
 
-This must be physically tested with the app foreground, background, and terminated when the chosen signing path supports native push.
+This must be physically tested with the app foreground, background, and terminated only when a future distribution profile actually enables native push. It is not a SideStore MVP release gate.
 
 ## Dark mode
 
@@ -418,18 +430,19 @@ Quantity, location, notes, purchase date, and similar fields should remain optio
 
 Expiry state must not be communicated by color alone; include text/icons. Maintain reasonable iOS Dynamic Type behavior.
 
-Ask for camera permission when scanning is first used. Ask for notifications when the benefit is clear rather than automatically at cold launch.
+Ask for camera permission when scanning is first used. In a standard/paid profile, ask for notifications when the benefit is clear rather than automatically at cold launch. The SideStore profile must not ask for push permission.
 
 ## Technology decisions
 
 - Flutter client; no Swift rewrite for the MVP.
-- Firebase Auth + Firestore + FCM + Functions/Scheduler + Emulator Suite.
-- Discord incoming webhooks as the per-user zero-fee reminder fallback.
+- Firebase Auth + Firestore + Functions/Scheduler + Emulator Suite; FCM retained for the standard/paid distribution profile.
+- Discord incoming webhooks as the per-user zero-fee reminder channel.
 - Open Food Facts for packaged-product lookup.
 - Household-owned inventory.
 - Date-only expiry values.
 - Backend-owned shared reminder timing with per-user delivery channels.
-- SideStore/free Apple Account as the first private iPhone distribution path; TestFlight is optional later rather than an MVP requirement.
+- SideStore/free Apple Account as the first private iPhone distribution path; compile it with `FRESHFLAG_SIDESTORE=true` and no APNs/FCM runtime dependency.
+- TestFlight is optional later rather than an MVP requirement.
 - Permissive/MIT-compatible source strategy.
 
 Do not add a second backend such as Supabase without an explicit recorded reason.
@@ -502,8 +515,9 @@ Particularly test:
 - notification eligibility/timezone windows;
 - idempotency identities;
 - household/invite authorization;
-- notification-target parsing/deep links;
+- notification-target parsing/deep links in the standard/paid profile;
 - Discord webhook validation, per-recipient identity, and backend-only integration-secret access;
+- SideStore profile capability guards and non-blocking startup/auth paths;
 - light/dark theme regression behavior.
 
 ## Phase map
@@ -514,26 +528,37 @@ Particularly test:
 - Phase 3: household-owned real-time inventory — complete.
 - Phase 4: invitations — complete MVP join flow.
 - Phase 5: configurable notification rules/device registration — complete source.
-- Phase 6: backend scheduled push worker/security harness — complete source; production deployment pending.
-- Phase 7: notification deep linking/item detail — complete source; physical-device validation pending where native push is available.
-- Phase 8: iOS/Firebase production configuration, private sideload build, physical testing, and optional later TestFlight — active.
-- Per-user Discord reminder fallback and app-wide dark mode — source implementation complete pending final validation/integration.
+- Phase 6: backend scheduled reminder worker/security harness — complete and deployed to production Firebase.
+- Phase 7: notification deep linking/item detail — complete source for standard/paid FCM profile; physical native-push validation deferred until that profile is used.
+- Phase 8: production Firebase configuration/deployment — complete; SideStore build/physical testing — active.
+- Per-user Discord reminder channel and app-wide dark mode — source implementation complete; physical-device acceptance remains.
 
 ## Phase 8 release gate
 
-Before the first private iPhone release:
+Completed prerequisites:
 
-- create/configure one FreshFlag-owned Firebase project;
-- keep the unique bundle identifier `com.rpatel2023.freshflag`;
-- register the matching Firebase iOS app and regenerate FlutterFire configuration;
-- deploy Firestore rules and Functions;
-- enable Firebase Authentication email/password and create Firestore;
-- complete modern Flutter Swift Package Manager/Xcode migration on a macOS builder;
-- generate an installable unsigned/ad-hoc iOS artifact suitable for the chosen sideload workflow;
-- bootstrap SideStore on both target iPhones using the free Apple Account path and keep the 7-day refresh requirement in mind;
-- configure each user's personal Discord webhook and prove scheduled Discord reminders arrive independently for both accounts;
-- test FCM/APNs if the free signing path exposes the required entitlement, but do not make native push a blocker for the zero-fee household build;
-- pass the physical two-account/two-device acceptance scenario;
-- if the project later moves to TestFlight/App Store distribution, then complete Apple Developer Program signing, APNs production credentials, App Store Connect privacy/beta metadata, archive, and upload.
+- FreshFlag-owned Firebase project/app configured;
+- unique bundle identifier `com.rpatel2023.freshflag` registered with Firebase;
+- production FlutterFire iOS configuration present;
+- Firestore rules and Cloud Functions deployed;
+- Firebase Authentication email/password and Firestore enabled;
+- unsigned iOS artifact workflow proven on macOS 14/Xcode 15.4;
+- Windows Apple device stack and initial SideStore bootstrap proven on the first target iPhone;
+- first FreshFlag IPA successfully signed/installed through `iloader`;
+- first-device white-screen failure diagnosed as FCM-before-`runApp()` behavior;
+- SideStore/Personal-Team codebase audit completed and source-validated; zero-fee profile explicitly disables APNs/FCM.
+
+Remaining before the first private household release:
+
+- merge the SideStore hardening PR;
+- build a new IPA using `FRESHFLAG_SIDESTORE=true` and all capability guards;
+- update/adopt FreshFlag through SideStore without deleting the existing installation;
+- prove FreshFlag reaches authentication promptly on the physical iPhone;
+- prove email/password signup/login and session persistence;
+- prove household create/invite/join across the two real iPhones;
+- prove recognized barcode scan, unknown/manual fallback, expiry/location persistence, realtime shared inventory and consume/restore lifecycle;
+- configure each user's personal Discord webhook and prove test plus scheduled due reminders arrive independently;
+- prove FreshFlag refresh/update through SideStore preserves the expected app data across the 7-day Personal-Team lifecycle;
+- if the project later moves to TestFlight/App Store distribution, complete Apple Developer Program signing, Push Notifications/background capability, APNs production credentials, App Store Connect privacy/beta metadata, archive, upload, and native-push acceptance testing.
 
 When implementation choices become unclear, choose the option that makes the core loop faster, more secure, and more reliable rather than expanding the product surface.

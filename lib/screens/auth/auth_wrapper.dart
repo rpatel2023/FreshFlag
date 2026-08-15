@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/distribution_config.dart';
 import '../../services/fcm_service.dart';
 import '../../services/firebase_auth_service.dart';
 import '../../viewmodels/grocery_viewmodel.dart';
@@ -46,9 +49,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
           _boundHouseholdId = null;
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (!mounted) return;
-            await FCMService.instance.syncRegistrationForCurrentUser();
-            if (!mounted) return;
+
+            // Household loading is core app functionality and must never wait
+            // for optional APNs/FCM registration.
             await household.initializeForUser(user.uid);
+            if (!mounted) return;
+
+            if (DistributionConfig.supportsRemotePush) {
+              unawaited(FCMService.instance.syncRegistrationForCurrentUser());
+            }
           });
         }
 

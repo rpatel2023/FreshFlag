@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'config/distribution_config.dart';
 import 'firebase_options.dart';
 import 'screens/auth/auth_wrapper.dart';
 import 'services/fcm_service.dart';
@@ -34,6 +37,14 @@ Future<void> _ensureFirebaseInitialized() async {
   }
 }
 
+Future<void> _initializeFcmAfterLaunch() async {
+  try {
+    await FCMService.instance.initialize();
+  } catch (e) {
+    debugPrint('FCM service initialization failed: $e');
+  }
+}
+
 Future<void> _initializeApp() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -49,19 +60,25 @@ Future<void> _initializeApp() async {
     debugPrint('Firebase initialization failed: $e');
   }
 
-  try {
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  } catch (e) {
-    debugPrint('FCM background handler setup failed: $e');
+  if (DistributionConfig.supportsRemotePush) {
+    try {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    } catch (e) {
+      debugPrint('FCM background handler setup failed: $e');
+    }
   }
 
-  try {
-    await FCMService.instance.initialize();
-  } catch (e) {
-    debugPrint('FCM service initialization failed: $e');
-  }
-
+  // Render before any optional messaging work. In a SideStore build, FCM is
+  // intentionally disabled because Personal-Team signing is not a supported
+  // APNs delivery path. In a standard build, initialize FCM after the first
+  // frame so token acquisition can never hold the native iOS launch screen.
   runApp(const FreshFlagApp());
+
+  if (DistributionConfig.supportsRemotePush) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initializeFcmAfterLaunch());
+    });
+  }
 }
 
 void main() async {

@@ -103,7 +103,7 @@ Result: Phase 6 source is integrated. Real Firebase deployment remains separate 
 
 - Added a narrow `NotificationTarget` parser that accepts only expiry-reminder payloads containing both `householdId` and `itemId`; Phase 6 `expiry_reminder` payloads remain backward compatible.
 - FCM preserves terminated-launch notification targets until the authenticated app shell is ready and emits background notification-tap targets to the live shell.
-- FCM message/tap listeners are installed before initial token lookup so an early Apple/APNs token timing failure cannot disable deep-link handling for the process lifetime.
+- FCM message/tap listeners are installed before initial token lookup so an early Apple/APNs token timing failure cannot disable deep-link handling for the rest of the process lifetime.
 - Enabled foreground Apple notification presentation for physical-device validation.
 - Notification taps verify target household access, switch households if needed, bind scoped inventory, fetch the exact item, switch to Inventory, and open a reusable item-detail screen.
 - Missing/deleted items and lost household access degrade to a user-visible message rather than an invalid route.
@@ -401,3 +401,45 @@ Result: per-user Discord reminder delivery is integrated and source-validated. R
 - Artifact retention expires `2026-08-21T21:54:04Z`.
 - Result: the Xcode 15.4 compatibility workaround resolves the native iOS build blocker for the current FlutterFire dependency set.
 - Next external gate: install the generated IPA through SideStore on the physical iPhone, then perform the two-device FreshFlag acceptance flow.
+
+### Windows SideStore bootstrap + first FreshFlag launch — BLOCKER FOUND
+
+- Repaired the Windows Apple device stack after iTunes initially could not use the iPhone; `Apple Mobile Device Service` is now installed/running and the iPhone is visible in iTunes.
+- Installed SideStore through `iloader` 2.3.1, trusted the developer app, enabled Developer Mode, connected LocalDevVPN, and completed SideStore's initial 7-day refresh successfully.
+- SideStore refresh initially hung while Tailscale and an AdGuard profile were active; after disconnecting/removing those competing VPN/DNS paths and restarting SideStore/LocalDevVPN, refresh succeeded.
+- iCloud storage was full and local HTTP transfer was blocked despite an IPv4 listener/firewall allowance, so the first FreshFlag IPA was imported directly through `iloader` over USB.
+- `iloader` reported **Sign & Install App — success** for `FreshFlag-unsigned.ipa`; the phone was then disconnected from the computer.
+- First physical launch did not reach Flutter UI: FreshFlag remained on the native white launch screen for more than one minute.
+- Code inspection identified a release-path bug: `main.dart` awaited `FCMService.initialize()` before `runApp()`, and that initialization awaited Apple/FCM token work. This is unsafe for Personal-Team/SideStore signing and also violates Firebase guidance not to make blocking token acquisition part of startup.
+
+### SideStore / Apple Personal-Team compatibility audit — SOURCE VALIDATED
+
+Branch: `fix/nonblocking-ios-startup`; PR #13.
+
+- Audited the complete current Flutter dependency surface and iOS Runner signing configuration specifically for SideStore/free Apple Personal Team behavior before spending another macOS build.
+- Current dependency/capability audit found no SideStore-specific paid-capability dependency outside remote push:
+  - Firebase email/password Auth, Firestore, callable Functions and server-side Discord use ordinary network access.
+  - `mobile_scanner` requires camera permission only; `NSCameraUsageDescription` is present.
+  - Open Food Facts uses HTTPS with a finite timeout and manual fallback.
+  - SharedPreferences uses the normal app container; there is no app group dependency.
+  - Runner has no `.entitlements` file, `CODE_SIGN_ENTITLEMENTS`, Xcode `SystemCapabilities`, app extensions, app groups, iCloud/CloudKit, Sign in with Apple, Apple Pay/Wallet, HealthKit, NFC, associated domains, network extension, or remote-notification background capability.
+- Adopted an explicit compile-time distribution contract: `--dart-define=FRESHFLAG_SIDESTORE=true` means **APNs/FCM is unavailable by product policy** and per-user Discord is the supported expiry-reminder delivery channel. A future paid/TestFlight build may omit this define and use the standard FCM path after proper Apple push provisioning.
+- Fixed all identified FCM/APNs gotchas rather than only the initial white-screen symptom:
+  - Flutter UI renders before optional messaging initialization.
+  - SideStore builds never register the FCM background handler or initialize FCM.
+  - `FirebaseMessagingAutoInitEnabled=false` prevents automatic native token generation.
+  - household loading no longer waits for device/FCM registration after login.
+  - the authenticated main shell does not instantiate `FCMService` in SideStore builds.
+  - push is opt-in by default for standard builds and its Settings toggle is disabled in SideStore with a Discord explanation.
+  - standard Apple builds check that an APNs token exists before requesting an FCM token and use a finite token timeout.
+- Hardened the manual SideStore workflow:
+  - tests the SideStore compile profile;
+  - builds with `FRESHFLAG_SIDESTORE=true`;
+  - verifies FCM auto-init remains disabled;
+  - fails if Runner entitlements/Xcode capabilities are introduced;
+  - fails if the generated app contains an `.appex` extension;
+  - verifies FreshFlag and Firebase plist bundle IDs match before packaging.
+- Added durable `docs/SIDESTORE_COMPATIBILITY_AUDIT.md` and rewrote `docs/sideload.md` around this distribution contract and SideStore-owned updates.
+- PR #13 audit commit `ac2c1084c67c6929923f61f03dd4be691c2a118c` passed Flutter CI run `31854341153`: dependency/lockfile checks, **21 tests**, analyzer, and Linux release build all succeeded.
+- Final shell guard commit `1336c974ea628645cfe8751411989dafc26bec44` passed Flutter CI run `31854522741`: dependency/lockfile checks, **21 tests**, analyzer, and Linux release build all succeeded.
+- No new manual macOS/IPA workflow was triggered during the audit. Next gate is merge PR #13, then build one new SideStore-profile IPA and install/update it through SideStore without deleting the existing FreshFlag app.

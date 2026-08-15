@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/distribution_config.dart';
 import '../models/notification_target.dart';
 import '../services/fcm_service.dart';
 import '../viewmodels/grocery_viewmodel.dart';
@@ -35,6 +36,11 @@ class _MainAppScreenState extends State<MainAppScreen> {
   @override
   void initState() {
     super.initState();
+
+    // The SideStore profile has no APNs/FCM delivery path. Do not even
+    // instantiate FCMService/FirebaseMessaging from the authenticated shell.
+    if (!DistributionConfig.supportsRemotePush) return;
+
     _notificationSubscription = FCMService.instance.navigationTargets.listen(
       (target) {
         // The stream event is authoritative for live taps. Clearing the
