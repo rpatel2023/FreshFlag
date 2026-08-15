@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_brand.dart';
 import '../config/distribution_config.dart';
 import '../models/household.dart';
 import '../services/fcm_service.dart';
@@ -48,7 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text(
                 user?.displayName?.trim().isNotEmpty == true
                     ? user!.displayName!
-                    : 'FreshFlag user',
+                    : '${AppBrand.name} user',
               ),
               subtitle: Text(user?.email ?? 'Signed in'),
             ),
@@ -193,8 +194,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 const ListTile(
                   leading: Icon(Icons.info_outline),
-                  title: Text('FreshFlag'),
-                  subtitle: Text('Shared household inventory build'),
+                  title: Text(AppBrand.name),
+                  subtitle: Text(AppBrand.tagline),
                 ),
                 ListTile(
                   leading: const Icon(Icons.logout),

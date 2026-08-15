@@ -47,6 +47,7 @@ test('Discord payload disables mentions and includes reminder context', () => {
     location: 'Fridge',
   });
 
+  assert.equal(body.username, 'Fresh Flag');
   assert.deepEqual(body.allowed_mentions, {parse: []});
   const embeds = body.embeds as Array<Record<string, unknown>>;
   assert.equal(embeds.length, 1);

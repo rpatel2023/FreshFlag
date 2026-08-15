@@ -10,6 +10,7 @@ import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {onSchedule} from 'firebase-functions/v2/scheduler';
 import {DateTime} from 'luxon';
 
+import {APP_DISPLAY_NAME} from './brand.js';
 import {
   DiscordWebhookConfig,
   discordDeliveryId,
@@ -104,10 +105,10 @@ export const testDiscordIntegration = onCall(
 
     try {
       await sendDiscordWebhook(webhookUrl, {
-        householdName: 'FreshFlag',
+        householdName: APP_DISPLAY_NAME,
         itemName: 'Test reminder',
         expiryDate: DateTime.utc().toISODate() ?? 'today',
-        title: 'FreshFlag Discord reminders are connected',
+        title: `${APP_DISPLAY_NAME} Discord reminders are connected`,
         body: 'This test confirms your personal Discord destination can receive expiry reminders.',
         quantity: 1,
         location: null,
@@ -140,7 +141,7 @@ export const processExpiryReminders = onSchedule(
     for (const householdDoc of households.docs) {
       const household = householdDoc.data();
       const timezone = household.timezone as string | undefined;
-      const householdName = String(household.name ?? 'FreshFlag household');
+      const householdName = String(household.name ?? `${APP_DISPLAY_NAME} household`);
       const memberUids = Array.isArray(household.memberUids)
         ? household.memberUids.filter((value): value is string => typeof value === 'string')
         : [];

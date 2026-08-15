@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_brand.dart';
 import '../../utils/app_theme.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import 'signup_screen.dart';
@@ -56,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: AppTheme.spacingM),
                         Text(
-                          'FreshFlag',
+                          AppBrand.name,
                           textAlign: TextAlign.center,
                           style: theme.textTheme.headlineLarge?.copyWith(
                             color: theme.colorScheme.primary,
@@ -142,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Text('Sign In'),
+                                : const Text('Sign in'),
                           ),
                         ),
                         const SizedBox(height: AppTheme.spacingM),
