@@ -22,6 +22,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
   String _searchQuery = '';
   _InventoryView _selectedView = _InventoryView.active;
@@ -39,6 +40,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     'Frozen',
     'Other',
   ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +157,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: AppTheme.spacingM),
             TextField(
+              controller: _searchController,
               onChanged: (value) => setState(() => _searchQuery = value),
               decoration: InputDecoration(
                 labelText: 'Search inventory',
@@ -159,7 +167,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ? null
                     : IconButton(
                         tooltip: 'Clear search',
-                        onPressed: () => setState(() => _searchQuery = ''),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
                         icon: const Icon(Icons.close),
                       ),
               ),
@@ -218,13 +229,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _sortItems(List<GroceryItem> items) {
-    switch (_sort) {
-      case _InventorySort.expiry:
-        items.sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
-      case _InventorySort.name:
-        items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      case _InventorySort.recentlyAdded:
-        items.sort((a, b) => b.addedDate.compareTo(a.addedDate));
+    if (_sort == _InventorySort.expiry) {
+      items.sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
+    } else if (_sort == _InventorySort.name) {
+      items.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+    } else {
+      items.sort((a, b) => b.addedDate.compareTo(a.addedDate));
     }
   }
 
