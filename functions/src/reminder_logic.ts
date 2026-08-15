@@ -64,12 +64,16 @@ export function renderTemplate(
   item: ReminderItemData,
   daysBefore: number,
 ): string {
-  return template
+  const rendered = template
     .replaceAll('{item}', item.name)
     .replaceAll('{days}', String(daysBefore))
     .replaceAll('{expiry_date}', item.expiryDate)
     .replaceAll('{quantity}', String(item.quantity))
     .replaceAll('{location}', item.location ?? '');
+
+  // Existing user-authored templates may contain "{days} days". Preserve the
+  // template language while fixing the grammatically incorrect one-day case.
+  return daysBefore === 1 ? rendered.replace(/\b1 days\b/g, '1 day') : rendered;
 }
 
 export function deliveryId(
