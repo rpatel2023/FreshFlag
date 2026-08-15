@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'config/app_brand.dart';
 import 'config/distribution_config.dart';
 import 'firebase_options.dart';
 import 'screens/auth/auth_wrapper.dart';
@@ -103,7 +104,7 @@ class FreshFlagApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp(
-            title: 'FreshFlag',
+            title: AppBrand.name,
             debugShowCheckedModeBanner: false,
             theme: ThemeProvider.lightTheme,
             darkTheme: ThemeProvider.darkTheme,
