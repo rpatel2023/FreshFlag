@@ -25,12 +25,9 @@ class FavoriteItem {
 
   factory FavoriteItem.fromGroceryItem(GroceryItem item) {
     final barcode = item.barcode?.trim();
-    final id = barcode != null && barcode.isNotEmpty
-        ? 'barcode-$barcode'
-        : 'item-${item.id}';
     final now = DateTime.now().toUtc();
     return FavoriteItem(
-      id: id,
+      id: idForItem(item),
       name: item.name.trim(),
       quantity: item.quantity,
       category: item.category,
@@ -40,6 +37,13 @@ class FavoriteItem {
       createdAt: now,
       updatedAt: now,
     );
+  }
+
+  static String idForItem(GroceryItem item) {
+    final barcode = item.barcode?.trim();
+    return barcode != null && barcode.isNotEmpty
+        ? 'barcode-$barcode'
+        : 'item-${item.id}';
   }
 
   Map<String, dynamic> toMap() => {
