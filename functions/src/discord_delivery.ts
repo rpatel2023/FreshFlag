@@ -1,5 +1,7 @@
 import {createHash} from 'node:crypto';
 
+import {APP_DISPLAY_NAME} from './brand.js';
+
 export interface DiscordWebhookConfig {
   enabled: boolean;
   webhookUrl: string;
@@ -74,7 +76,7 @@ export function buildDiscordWebhookBody(payload: DiscordReminderPayload): Record
   }
 
   return {
-    username: 'FreshFlag',
+    username: APP_DISPLAY_NAME,
     allowed_mentions: {parse: []},
     embeds: [
       {
