@@ -4,6 +4,7 @@ import {HttpsError, onCall} from 'firebase-functions/v2/https';
 
 import {
   HouseholdRole,
+  canLeaveHousehold,
   canRemoveMember,
   canSetMemberRole,
   isHouseholdRole,
@@ -177,5 +178,51 @@ export const removeHouseholdMember = onCall(
     });
 
     return {removed: true, uid: targetUid};
+  },
+);
+
+export const leaveHousehold = onCall(
+  {region: 'us-central1'},
+  async (request) => {
+    const callerUid = requireUid(request.auth?.uid);
+    const householdId = requireHouseholdId(request.data?.householdId);
+    const db = getFirestore();
+    const householdRef = db.collection('households').doc(householdId);
+    const memberRef = householdRef.collection('members').doc(callerUid);
+    const userRef = db.collection('users').doc(callerUid);
+
+    await db.runTransaction(async (transaction) => {
+      const [householdSnapshot, memberSnapshot, userSnapshot] = await Promise.all([
+        transaction.get(householdRef),
+        transaction.get(memberRef),
+        transaction.get(userRef),
+      ]);
+      const household = householdSnapshot.data();
+      const role = memberSnapshot.data()?.role;
+
+      if (!householdSnapshot.exists || !memberSnapshot.exists || !isHouseholdRole(role)) {
+        throw new HttpsError('not-found', 'Household membership not found.');
+      }
+      if (household?.ownerUid === callerUid || !canLeaveHousehold(role)) {
+        throw new HttpsError(
+          'failed-precondition',
+          'The household owner cannot leave until ownership is transferred.',
+        );
+      }
+
+      transaction.update(householdRef, {
+        memberUids: FieldValue.arrayRemove(callerUid),
+        updatedAt: new Date().toISOString(),
+      });
+      transaction.delete(memberRef);
+      if (userSnapshot.data()?.currentHouseholdId === householdId) {
+        transaction.set(userRef, {
+          currentHouseholdId: FieldValue.delete(),
+          updatedAt: new Date().toISOString(),
+        }, {merge: true});
+      }
+    });
+
+    return {left: true, householdId};
   },
 );
