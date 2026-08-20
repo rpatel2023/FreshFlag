@@ -225,6 +225,17 @@ void main() {
       expect(product.quantityLabel, '400 g');
     });
 
+    test('parses household cached barcode products', () {
+      final product = ProductLookupResult.fromHouseholdCache('12345678', {
+        'name': 'Manual beans',
+        'category': 'Canned goods',
+      });
+
+      expect(product.barcode, '12345678');
+      expect(product.name, 'Manual beans');
+      expect(product.category, 'Canned goods');
+    });
+
     test('falls back to a generic product name', () {
       final product = ProductLookupResult.fromOpenFoodFactsProduct('12345678', {
         'product_name': '   ',

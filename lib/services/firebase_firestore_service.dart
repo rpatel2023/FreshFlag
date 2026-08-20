@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/grocery_item.dart';
+import '../models/product_lookup_result.dart';
 
 /// Firestore access for the currently selected household inventory.
 class FirebaseFirestoreService {
@@ -33,6 +34,15 @@ class FirebaseFirestoreService {
         .collection('households')
         .doc(householdId)
         .collection('categories');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _productCache {
+    final householdId = _householdId;
+    if (householdId == null) throw StateError('No household selected');
+    return _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('productCache');
   }
 
   Future<String> addGroceryItem(GroceryItem item) async {
@@ -120,6 +130,35 @@ class FirebaseFirestoreService {
     });
   }
 
+  Future<ProductLookupResult?> getCachedProduct(String barcode) async {
+    final normalized = _normalizeBarcode(barcode);
+    if (normalized == null) return null;
+    final doc = await _productCache.doc(normalized).get();
+    final data = doc.data();
+    if (data == null) return null;
+    return ProductLookupResult.fromHouseholdCache(normalized, data);
+  }
+
+  Future<void> saveCachedProduct({
+    required String barcode,
+    required String name,
+    required String category,
+    required String updatedByUid,
+  }) async {
+    final normalized = _normalizeBarcode(barcode);
+    final normalizedName = _normalizeCategoryName(name);
+    final normalizedCategory = _normalizeCategoryName(category);
+    if (normalized == null || normalizedName == null) return;
+    final now = DateTime.now().toUtc().toIso8601String();
+    await _productCache.doc(normalized).set({
+      'barcode': normalized,
+      'name': normalizedName,
+      if (normalizedCategory != null) 'category': normalizedCategory,
+      'updatedByUid': updatedByUid,
+      'updatedAt': now,
+    }, SetOptions(merge: true));
+  }
+
   Future<List<GroceryItem>> searchGroceryItems(String query) async {
     final allItems = _fromSnapshot(await _items.get());
     final normalized = query.trim().toLowerCase();
@@ -184,5 +223,11 @@ class FirebaseFirestoreService {
       return base64Url.encode(utf8.encode(normalized)).replaceAll('=', '');
     }
     return trimmed;
+  }
+
+  static String? _normalizeBarcode(String value) {
+    final normalized = value.trim();
+    if (!RegExp(r'^\d{4,24}$').hasMatch(normalized)) return null;
+    return normalized;
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/grocery_item.dart';
 import '../models/inventory_category.dart';
+import '../models/product_lookup_result.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/firebase_firestore_service.dart';
 
@@ -113,6 +114,7 @@ class GroceryViewModel extends ChangeNotifier {
     _clearError();
     try {
       await _firestore.addGroceryItem(persisted);
+      await _cacheProductFromItem(persisted);
     } catch (e) {
       _setError('Failed to save item: $e');
       rethrow;
@@ -153,6 +155,7 @@ class GroceryViewModel extends ChangeNotifier {
     _clearError();
     try {
       await _firestore.updateGroceryItem(persisted);
+      await _cacheProductFromItem(persisted);
     } catch (e) {
       _setError('Failed to update item: $e');
       rethrow;
@@ -186,6 +189,16 @@ class GroceryViewModel extends ChangeNotifier {
     } catch (e) {
       _setError('Failed to load item: $e');
       rethrow;
+    }
+  }
+
+  Future<ProductLookupResult?> lookupCachedProduct(String barcode) async {
+    _requireContext('look up cached products');
+    try {
+      return await _firestore.getCachedProduct(barcode);
+    } catch (e) {
+      _setError('Failed to load cached product: $e');
+      return null;
     }
   }
 
@@ -254,6 +267,23 @@ class GroceryViewModel extends ChangeNotifier {
     if (_error == null) return;
     _error = null;
     notifyListeners();
+  }
+
+  Future<void> _cacheProductFromItem(GroceryItem item) async {
+    final barcode = item.barcode?.trim();
+    if (barcode == null || barcode.isEmpty) return;
+    final uid = _auth.currentUserId;
+    if (uid == null) return;
+    try {
+      await _firestore.saveCachedProduct(
+        barcode: barcode,
+        name: item.name,
+        category: item.category,
+        updatedByUid: uid,
+      );
+    } catch (e) {
+      _setError('Saved item, but could not remember barcode product: $e');
+    }
   }
 
   @override

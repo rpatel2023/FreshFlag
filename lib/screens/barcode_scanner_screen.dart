@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:provider/provider.dart';
 
 import '../models/product_lookup_result.dart';
 import '../services/product_lookup_service.dart';
 import '../utils/app_theme.dart';
+import '../viewmodels/grocery_viewmodel.dart';
 import 'add_item_screen.dart';
 
 /// Scans a packaged-food barcode, recognizes it through Open Food Facts, and
@@ -52,20 +54,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
+          MobileScanner(controller: _controller, onDetect: _onDetect),
           IgnorePointer(
             child: Center(
               child: Container(
                 width: 280,
                 height: 180,
                 decoration: BoxDecoration(
-                  border: Border.all(
-                    color: AppTheme.primaryGreen,
-                    width: 4,
-                  ),
+                  border: Border.all(color: AppTheme.primaryGreen, width: 4),
                   borderRadius: BorderRadius.circular(AppTheme.radiusM),
                 ),
               ),
@@ -123,6 +119,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 
     if (value == null) return;
     final scannedValue = value;
+    final inventory = context.read<GroceryViewModel>();
 
     setState(() => _handlingBarcode = true);
     await _controller.stop();
@@ -130,7 +127,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     ProductLookupResult? product;
     String? lookupMessage;
     try {
-      product = await _productLookupService.lookupBarcode(scannedValue);
+      product = await inventory.lookupCachedProduct(scannedValue);
+      product ??= await _productLookupService.lookupBarcode(scannedValue);
       if (product == null) {
         lookupMessage = 'Product not found. You can enter the name manually.';
       }
@@ -162,7 +160,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               Text(
                 product == null ? 'Barcode scanned' : product.name,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               if (product?.quantityLabel != null) ...[
                 const SizedBox(height: AppTheme.spacingXS),
@@ -191,7 +192,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context, _ScanAction.add),
-                      child: Text(product == null ? 'Enter manually' : 'Set expiry'),
+                      child: Text(
+                        product == null ? 'Enter manually' : 'Set expiry',
+                      ),
                     ),
                   ),
                 ],
@@ -210,6 +213,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           builder: (_) => AddItemScreen(
             initialBarcode: scannedValue,
             initialName: product?.name,
+            initialCategory: product?.category,
           ),
         ),
       );
@@ -228,9 +232,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   }
 
   void _addManually() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const AddItemScreen()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const AddItemScreen()));
   }
 }
 

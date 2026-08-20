@@ -122,6 +122,16 @@ function customCategory(uid, name = 'Pantry staples') {
   };
 }
 
+function cachedProduct(uid, barcode = '12345678') {
+  return {
+    barcode,
+    name: 'Manual beans',
+    category: 'Canned goods',
+    updatedByUid: uid,
+    updatedAt: '2026-08-20T12:00:00.000Z',
+  };
+}
+
 test('household members including guests can read but outsiders cannot', async () => {
   await seedHousehold({
     memberUids: ['owner-1', 'member-1', 'guest-1'],
@@ -249,6 +259,33 @@ test('custom categories are household-readable and writable only by inventory wr
     },
   ));
   await assertSucceeds(deleteDoc(doc(owner, 'households', 'house-1', 'categories', 'pantry-staples')));
+});
+
+test('barcode product cache is household-readable and writable only by inventory writers', async () => {
+  await seedHousehold({
+    memberUids: ['owner-1', 'member-1', 'guest-1'],
+    roles: {'guest-1': 'guest'},
+  });
+  const owner = env.authenticatedContext('owner-1').firestore();
+  const member = env.authenticatedContext('member-1').firestore();
+  const guest = env.authenticatedContext('guest-1').firestore();
+  const outsider = env.authenticatedContext('outsider-1').firestore();
+
+  await assertSucceeds(setDoc(
+    doc(member, 'households', 'house-1', 'productCache', '12345678'),
+    cachedProduct('member-1'),
+  ));
+  await assertSucceeds(getDoc(doc(guest, 'households', 'house-1', 'productCache', '12345678')));
+  await assertFails(getDoc(doc(outsider, 'households', 'house-1', 'productCache', '12345678')));
+  await assertFails(setDoc(
+    doc(guest, 'households', 'house-1', 'productCache', '87654321'),
+    cachedProduct('guest-1', '87654321'),
+  ));
+  await assertFails(setDoc(
+    doc(member, 'households', 'house-1', 'productCache', 'not-the-barcode'),
+    cachedProduct('member-1', '12345678'),
+  ));
+  await assertSucceeds(deleteDoc(doc(owner, 'households', 'house-1', 'productCache', '12345678')));
 });
 
 test('users can only write their own device registrations', async () => {

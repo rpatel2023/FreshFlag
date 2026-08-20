@@ -3,11 +3,13 @@ class ProductLookupResult {
     required this.barcode,
     required this.name,
     this.quantityLabel,
+    this.category,
   });
 
   final String barcode;
   final String name;
   final String? quantityLabel;
+  final String? category;
 
   factory ProductLookupResult.fromOpenFoodFactsProduct(
     String barcode,
@@ -32,6 +34,34 @@ class ProductLookupResult {
       quantityLabel: _firstNonEmptyString([product['quantity']]),
     );
   }
+
+  factory ProductLookupResult.fromHouseholdCache(
+    String barcode,
+    Map<String, dynamic> data,
+  ) {
+    final name = _firstNonEmptyString([data['name']]);
+    if (name == null) {
+      throw const FormatException(
+        'Cached product does not contain a usable name.',
+      );
+    }
+    return ProductLookupResult(
+      barcode: barcode,
+      name: name,
+      category: _firstNonEmptyString([data['category']]),
+    );
+  }
+
+  Map<String, dynamic> toHouseholdCacheMap({
+    required String updatedByUid,
+    required String updatedAt,
+  }) => {
+    'barcode': barcode,
+    'name': name.trim(),
+    if (category?.trim().isNotEmpty == true) 'category': category!.trim(),
+    'updatedByUid': updatedByUid,
+    'updatedAt': updatedAt,
+  };
 
   static String? _firstNonEmptyString(List<dynamic> values) {
     for (final value in values) {

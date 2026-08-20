@@ -103,6 +103,33 @@ service cloud.firestore {
         data.createdByUid is string;
     }
 
+    function validProductCacheData(data) {
+      return data.keys().hasOnly([
+          'barcode',
+          'name',
+          'category',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.keys().hasAll([
+          'barcode',
+          'name',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.barcode is string &&
+        data.barcode.matches('^[0-9]{4,24}$') &&
+        data.name is string &&
+        data.name.size() > 0 &&
+        data.name.size() <= 200 &&
+        (!('category' in data) || (
+          data.category is string &&
+          data.category.size() > 0 &&
+          data.category.size() <= 50
+        )) &&
+        data.updatedByUid == request.auth.uid;
+    }
+
     match /users/{uid} {
       allow read, create, update, delete: if isSelf(uid);
 
@@ -187,6 +214,14 @@ service cloud.firestore {
         allow update: if isHouseholdManager(householdId) &&
           validInventoryCategoryData(request.resource.data) &&
           request.resource.data.createdByUid == resource.data.createdByUid;
+        allow delete: if isHouseholdManager(householdId);
+      }
+
+      match /productCache/{barcode} {
+        allow read: if isHouseholdMember(householdId);
+        allow create, update: if canWriteInventory(householdId) &&
+          request.resource.data.barcode == barcode &&
+          validProductCacheData(request.resource.data);
         allow delete: if isHouseholdManager(householdId);
       }
     }

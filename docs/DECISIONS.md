@@ -63,6 +63,8 @@ Fresh Flag should request English Open Food Facts responses and prefer English p
 
 Manual item naming remains available when lookup data is missing or still not ideal.
 
+When a household member manually names an item with a barcode, Fresh Flag should save that barcode-to-product metadata in a household-owned cache. Future scans of that barcode should prefer the household cache before querying Open Food Facts so users do not repeatedly re-enter the same product.
+
 ## D-009 — Categories are open-ended item metadata
 
 Inventory categories are not a closed enum.
