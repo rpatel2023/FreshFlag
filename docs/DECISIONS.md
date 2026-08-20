@@ -77,4 +77,14 @@ Dashboard filters should include both saved household categories and categories 
 
 Discord delivery remains per user, not household-global.
 
-Expiry reminders and item-added messages are separate opt-ins using the user's saved Discord webhook. Item-added notifications should be sent only to household members who explicitly enabled that event.
+Expiry reminders and item activity messages are separate opt-ins using the user's saved Discord webhook. Activity notifications should be sent only to household members who explicitly enabled that event type.
+
+Current activity event types are item added, item changed, item consumed, item restored, and item removed.
+
+## D-011 — SideStore uses local expiry reminders, not remote push
+
+Fresh Flag's SideStore/free Personal Team build should not depend on APNs/FCM remote push.
+
+For SideStore, expiry reminders are device-local notifications scheduled from the inventory that has synced to that iPhone. Cross-device household activity alerts remain optional Discord notifications and in-app Activity feed entries.
+
+Standard/paid builds may continue to use FCM/APNs remote push for expiry reminders.

@@ -7,12 +7,13 @@ import '../models/inventory_category.dart';
 import '../models/product_lookup_result.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/firebase_firestore_service.dart';
+import '../services/local_expiry_notification_service.dart';
 
 /// Authoritative real-time inventory state for the selected household.
 ///
-/// Expiry reminder delivery is backend-driven. This ViewModel never schedules
-/// device-local expiry notifications, which avoids duplicate or rule-divergent
-/// reminders across household members.
+/// Expiry reminder delivery is backend-driven for standard builds. SideStore
+/// builds reschedule device-local expiry reminders from this authoritative
+/// stream because APNs/FCM is not available there.
 class GroceryViewModel extends ChangeNotifier {
   List<GroceryItem> _items = [];
   List<String> _customCategories = [];
@@ -67,6 +68,7 @@ class GroceryViewModel extends ChangeNotifier {
       (items) {
         _items = items;
         _sortItems();
+        unawaited(LocalExpiryNotificationService.instance.sync(_items));
         _error = null;
         _isLoading = false;
         notifyListeners();

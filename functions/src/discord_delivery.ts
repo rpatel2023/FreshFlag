@@ -6,6 +6,10 @@ export interface DiscordWebhookConfig {
   enabled: boolean;
   webhookUrl: string;
   itemAddedEnabled?: boolean;
+  itemChangedEnabled?: boolean;
+  itemRemovedEnabled?: boolean;
+  itemConsumedEnabled?: boolean;
+  itemRestoredEnabled?: boolean;
 }
 
 export interface DiscordReminderPayload {
@@ -71,12 +75,16 @@ export function itemAddedDiscordDeliveryId(
   itemId: string,
   recipientUid: string,
 ): string {
-  const raw = [
-    'discord-item-added',
-    householdId,
-    itemId,
-    recipientUid,
-  ].join('|');
+  return activityDiscordDeliveryId('item_added', householdId, itemId, recipientUid);
+}
+
+export function activityDiscordDeliveryId(
+  eventType: string,
+  householdId: string,
+  itemId: string,
+  recipientUid: string,
+): string {
+  const raw = ['discord-activity', eventType, householdId, itemId, recipientUid].join('|');
   return createHash('sha256').update(raw).digest('hex');
 }
 

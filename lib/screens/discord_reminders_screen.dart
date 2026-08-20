@@ -36,7 +36,17 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
     final status = _status;
     final enabled = status?.enabled ?? false;
     final itemAddedEnabled = status?.itemAddedEnabled ?? false;
+    final itemChangedEnabled = status?.itemChangedEnabled ?? false;
+    final itemRemovedEnabled = status?.itemRemovedEnabled ?? false;
+    final itemConsumedEnabled = status?.itemConsumedEnabled ?? false;
+    final itemRestoredEnabled = status?.itemRestoredEnabled ?? false;
     final configured = status?.configured ?? false;
+    final activityEnabled =
+        itemAddedEnabled ||
+        itemChangedEnabled ||
+        itemRemovedEnabled ||
+        itemConsumedEnabled ||
+        itemRestoredEnabled;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Discord reminders')),
@@ -64,7 +74,7 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             Text(
-                              enabled || itemAddedEnabled
+                              enabled || activityEnabled
                                   ? 'Your selected Fresh Flag notifications are sent to Discord.'
                                   : configured
                                   ? 'Your webhook is saved but Discord notifications are disabled.'
@@ -148,7 +158,58 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
                         'Send a Discord message when someone adds an item to your household',
                       ),
                       value: itemAddedEnabled,
-                      onChanged: _saving ? null : _setItemAddedEnabled,
+                      onChanged: _saving
+                          ? null
+                          : (value) =>
+                                _setActivityEnabled(itemAddedEnabled: value),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Item changed notifications'),
+                      subtitle: const Text(
+                        'Send a Discord message when item details or expiry dates change',
+                      ),
+                      value: itemChangedEnabled,
+                      onChanged: _saving
+                          ? null
+                          : (value) =>
+                                _setActivityEnabled(itemChangedEnabled: value),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Consumed notifications'),
+                      subtitle: const Text(
+                        'Send a Discord message when an item is marked consumed',
+                      ),
+                      value: itemConsumedEnabled,
+                      onChanged: _saving
+                          ? null
+                          : (value) =>
+                                _setActivityEnabled(itemConsumedEnabled: value),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Restored notifications'),
+                      subtitle: const Text(
+                        'Send a Discord message when a consumed item is restored',
+                      ),
+                      value: itemRestoredEnabled,
+                      onChanged: _saving
+                          ? null
+                          : (value) =>
+                                _setActivityEnabled(itemRestoredEnabled: value),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Removed notifications'),
+                      subtitle: const Text(
+                        'Send a Discord message when an item is removed',
+                      ),
+                      value: itemRemovedEnabled,
+                      onChanged: _saving
+                          ? null
+                          : (value) =>
+                                _setActivityEnabled(itemRemovedEnabled: value),
                     ),
                     OutlinedButton.icon(
                       onPressed: _testing ? null : _sendTest,
@@ -226,11 +287,21 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
     }
   }
 
-  Future<void> _setItemAddedEnabled(bool enabled) async {
+  Future<void> _setActivityEnabled({
+    bool? itemAddedEnabled,
+    bool? itemChangedEnabled,
+    bool? itemRemovedEnabled,
+    bool? itemConsumedEnabled,
+    bool? itemRestoredEnabled,
+  }) async {
     setState(() => _saving = true);
     try {
       final status = await DiscordReminderService.instance.save(
-        itemAddedEnabled: enabled,
+        itemAddedEnabled: itemAddedEnabled,
+        itemChangedEnabled: itemChangedEnabled,
+        itemRemovedEnabled: itemRemovedEnabled,
+        itemConsumedEnabled: itemConsumedEnabled,
+        itemRestoredEnabled: itemRestoredEnabled,
       );
       if (!mounted) return;
       setState(() => _status = status);

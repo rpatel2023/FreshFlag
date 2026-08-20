@@ -77,6 +77,10 @@ The repository now includes a post-validation source batch that still needs depl
 - dashboard category filters include saved household categories plus categories found on actual inventory items;
 - Discord settings now include a separate per-user opt-in for item-added notifications;
 - a backend item-create trigger sends Discord item-added messages only to household members who configured a Discord webhook and opted into that event.
+- SideStore builds now have source support for on-device local expiry reminders from the synced inventory, exposed as **Expiry reminders on this iPhone** instead of unavailable remote push.
+- Discord item activity opt-ins are now granular in source: item added, item changed, item consumed, item restored, and item removed.
+- Backend item create/update/delete triggers now write a household-readable activity feed under `households/{householdId}/activity`, and the app exposes it as an **Activity** tab.
+- Household members, including guests, can read activity entries; clients cannot write them directly.
 
 ## Current known gaps / bugs
 

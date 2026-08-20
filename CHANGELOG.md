@@ -140,14 +140,18 @@ The old deployment/build/physical-acceptance gate is complete. Do not send futur
 - Dashboard category filters now include saved household categories plus categories found on actual inventory items.
 - Discord settings now include a separate per-user opt-in for item-added notifications.
 - A new Cloud Functions item-create trigger fans out Discord item-added messages only to household members who configured Discord and enabled that event.
+- SideStore builds now expose **Expiry reminders on this iPhone**, scheduling local on-device expiry alerts from synced inventory instead of relying on APNs/FCM.
+- Discord settings now include granular activity opt-ins for item added, item changed, item consumed, item restored, and item removed notifications.
+- Backend item create/update/delete triggers now record household activity feed entries and fan out opted-in Discord activity messages.
+- The app now includes an **Activity** bottom-navigation tab backed by `households/{householdId}/activity`.
+- Firestore rules allow household members, including Guests, to read activity entries while keeping activity writes backend-only.
 - Fixed the existing leave-household snackbar async-context analyzer lint while keeping behavior unchanged.
 
 Validation completed locally:
 
 - `flutter analyze`
-- `flutter test test/widget_test.dart test/discord_integration_status_test.dart`
+- `flutter test`
 - `cd functions && npm test`
-
-Attempted `cd security-tests && npm test`, but the Firestore Emulator could not start because Java is not installed on PATH in this environment.
+- `cd security-tests && npm test`
 
 This source batch still needs Cloud Functions/rules deployment, a fresh IPA, and phone validation before it is considered current-build behavior.

@@ -7,9 +7,11 @@ import '../models/household.dart';
 import '../services/fcm_service.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/household_member_service.dart';
+import '../services/local_expiry_notification_service.dart';
 import '../services/local_database_service.dart';
 import '../theme/theme_provider.dart';
 import '../utils/app_theme.dart';
+import '../viewmodels/grocery_viewmodel.dart';
 import '../viewmodels/household_viewmodel.dart';
 import 'discord_reminders_screen.dart';
 import 'household_invite_screen.dart';
@@ -25,6 +27,8 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = LocalDatabaseService.notificationsEnabled;
+  bool _localExpiryRemindersEnabled =
+      LocalDatabaseService.localExpiryRemindersEnabled;
   bool _updatingNotifications = false;
   bool _leavingHousehold = false;
 
@@ -163,18 +167,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: Column(
               children: [
-                SwitchListTile(
-                  title: const Text('Push notifications'),
-                  subtitle: Text(
-                    supportsRemotePush
-                        ? 'Receive household expiry reminders'
-                        : 'Unavailable in the SideStore build. Use Discord reminders.',
+                if (supportsRemotePush)
+                  SwitchListTile(
+                    title: const Text('Push notifications'),
+                    subtitle: const Text('Receive household expiry reminders'),
+                    value: _notificationsEnabled,
+                    onChanged: _updatingNotifications
+                        ? null
+                        : _setNotificationsEnabled,
+                  )
+                else
+                  SwitchListTile(
+                    title: const Text('Expiry reminders on this iPhone'),
+                    subtitle: const Text(
+                      'Schedule local alerts from the inventory synced to this device',
+                    ),
+                    value: _localExpiryRemindersEnabled,
+                    onChanged: _updatingNotifications
+                        ? null
+                        : _setLocalExpiryRemindersEnabled,
                   ),
-                  value: supportsRemotePush ? _notificationsEnabled : false,
-                  onChanged: !supportsRemotePush || _updatingNotifications
-                      ? null
-                      : _setNotificationsEnabled,
-                ),
                 ListTile(
                   leading: const Icon(Icons.discord),
                   title: const Text('Discord reminders'),
@@ -230,6 +242,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not update notifications: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _updatingNotifications = false);
+    }
+  }
+
+  Future<void> _setLocalExpiryRemindersEnabled(bool value) async {
+    setState(() => _updatingNotifications = true);
+    try {
+      final inventory = context.read<GroceryViewModel>();
+      await LocalExpiryNotificationService.instance.setEnabled(
+        value,
+        inventory.items,
+      );
+      if (!mounted) return;
+      setState(() => _localExpiryRemindersEnabled = value);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update expiry reminders: $e')),
       );
     } finally {
       if (mounted) setState(() => _updatingNotifications = false);

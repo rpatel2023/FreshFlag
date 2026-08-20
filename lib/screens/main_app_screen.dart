@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../config/distribution_config.dart';
 import '../models/notification_target.dart';
 import '../services/fcm_service.dart';
+import 'activity_screen.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 import '../viewmodels/household_viewmodel.dart';
 import 'dashboard_screen.dart';
@@ -31,6 +32,7 @@ class _MainAppScreenState extends State<MainAppScreen> {
   static const _screens = <Widget>[
     DashboardScreen(),
     RemindersScreen(),
+    ActivityScreen(),
     FavoritesScreen(),
     SettingsScreen(),
   ];
@@ -43,15 +45,15 @@ class _MainAppScreenState extends State<MainAppScreen> {
     // instantiate FCMService/FirebaseMessaging from the authenticated shell.
     if (!DistributionConfig.supportsRemotePush) return;
 
-    _notificationSubscription = FCMService.instance.navigationTargets.listen(
-      (target) {
-        // The stream event is authoritative for live taps. Clearing the
-        // pending slot prevents the same target being replayed if the shell is
-        // rebuilt, without replacing this event with a newer queued target.
-        FCMService.instance.takePendingNavigationTarget();
-        unawaited(_openNotificationTarget(target));
-      },
-    );
+    _notificationSubscription = FCMService.instance.navigationTargets.listen((
+      target,
+    ) {
+      // The stream event is authoritative for live taps. Clearing the
+      // pending slot prevents the same target being replayed if the shell is
+      // rebuilt, without replacing this event with a newer queued target.
+      FCMService.instance.takePendingNavigationTarget();
+      unawaited(_openNotificationTarget(target));
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -86,6 +88,11 @@ class _MainAppScreenState extends State<MainAppScreen> {
             icon: Icon(Icons.notifications_outlined),
             selectedIcon: Icon(Icons.notifications),
             label: 'Reminders',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history),
+            label: 'Activity',
           ),
           NavigationDestination(
             icon: Icon(Icons.star_outline),
@@ -126,7 +133,8 @@ class _MainAppScreenState extends State<MainAppScreen> {
       }
       await inventory.bindHousehold(target.householdId);
 
-      final item = inventory.getItemById(target.itemId) ??
+      final item =
+          inventory.getItemById(target.itemId) ??
           await inventory.fetchItem(target.itemId);
       if (!mounted) return;
       if (item == null) {
@@ -140,10 +148,8 @@ class _MainAppScreenState extends State<MainAppScreen> {
 
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => ItemDetailScreen(
-            itemId: target.itemId,
-            initialItem: item,
-          ),
+          builder: (_) =>
+              ItemDetailScreen(itemId: target.itemId, initialItem: item),
         ),
       );
     } catch (_) {
@@ -162,8 +168,8 @@ class _MainAppScreenState extends State<MainAppScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

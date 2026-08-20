@@ -1,12 +1,17 @@
 import {initializeApp} from 'firebase-admin/app';
 import {
+  DocumentData,
   DocumentReference,
   FieldValue,
   getFirestore,
 } from 'firebase-admin/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
 import {logger} from 'firebase-functions';
-import {onDocumentCreated} from 'firebase-functions/v2/firestore';
+import {
+  onDocumentCreated,
+  onDocumentDeleted,
+  onDocumentUpdated,
+} from 'firebase-functions/v2/firestore';
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {onSchedule} from 'firebase-functions/v2/scheduler';
 import {DateTime} from 'luxon';
@@ -14,6 +19,7 @@ import {DateTime} from 'luxon';
 import {APP_DISPLAY_NAME} from './brand.js';
 import {
   DiscordWebhookConfig,
+  activityDiscordDeliveryId,
   discordDeliveryId,
   itemAddedDiscordDeliveryId,
   normalizeDiscordWebhookUrl,
@@ -35,6 +41,26 @@ const SEND_WINDOW_MINUTES = 5;
 const DELIVERY_CLAIM_TTL_MINUTES = 15;
 const DEVICE_STALE_DAYS = 45;
 
+type ActivityEventType =
+  | 'item_added'
+  | 'item_changed'
+  | 'item_removed'
+  | 'item_consumed'
+  | 'item_restored';
+
+interface ItemActivity {
+  id?: string;
+  eventType: ActivityEventType;
+  householdId: string;
+  householdName: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  expiryDate: string;
+  location: string | null;
+  actorUid: string | null;
+}
+
 interface DeviceRegistration {
   ref: DocumentReference;
   token: string;
@@ -50,6 +76,10 @@ export const getDiscordIntegrationStatus = onCall(
       configured: typeof data?.webhookUrl === 'string' && data.webhookUrl.length > 0,
       enabled: data?.enabled === true,
       itemAddedEnabled: data?.itemAddedEnabled === true,
+      itemChangedEnabled: data?.itemChangedEnabled === true,
+      itemRemovedEnabled: data?.itemRemovedEnabled === true,
+      itemConsumedEnabled: data?.itemConsumedEnabled === true,
+      itemRestoredEnabled: data?.itemRestoredEnabled === true,
     };
   },
 );
@@ -71,6 +101,18 @@ export const setDiscordIntegration = onCall(
     const itemAddedEnabled = typeof request.data?.itemAddedEnabled === 'boolean'
       ? request.data.itemAddedEnabled
       : existingData?.itemAddedEnabled === true;
+    const itemChangedEnabled = typeof request.data?.itemChangedEnabled === 'boolean'
+      ? request.data.itemChangedEnabled
+      : existingData?.itemChangedEnabled === true;
+    const itemRemovedEnabled = typeof request.data?.itemRemovedEnabled === 'boolean'
+      ? request.data.itemRemovedEnabled
+      : existingData?.itemRemovedEnabled === true;
+    const itemConsumedEnabled = typeof request.data?.itemConsumedEnabled === 'boolean'
+      ? request.data.itemConsumedEnabled
+      : existingData?.itemConsumedEnabled === true;
+    const itemRestoredEnabled = typeof request.data?.itemRestoredEnabled === 'boolean'
+      ? request.data.itemRestoredEnabled
+      : existingData?.itemRestoredEnabled === true;
 
     let webhookUrl: string | undefined;
     if (webhookRaw !== '') {
@@ -92,7 +134,19 @@ export const setDiscordIntegration = onCall(
     if (itemAddedEnabled && webhookUrl == null) {
       throw new HttpsError(
         'failed-precondition',
-        'A Discord webhook URL is required before enabling item added notifications.',
+        'A Discord webhook URL is required before enabling item activity notifications.',
+      );
+    }
+    if (
+      (itemChangedEnabled ||
+        itemRemovedEnabled ||
+        itemConsumedEnabled ||
+        itemRestoredEnabled) &&
+      webhookUrl == null
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A Discord webhook URL is required before enabling item activity notifications.',
       );
     }
 
@@ -100,12 +154,24 @@ export const setDiscordIntegration = onCall(
       type: 'discord',
       enabled,
       itemAddedEnabled,
+      itemChangedEnabled,
+      itemRemovedEnabled,
+      itemConsumedEnabled,
+      itemRestoredEnabled,
       ...(webhookUrl == null ? {} : {webhookUrl}),
       uid,
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
 
-    return {configured: webhookUrl != null, enabled, itemAddedEnabled};
+    return {
+      configured: webhookUrl != null,
+      enabled,
+      itemAddedEnabled,
+      itemChangedEnabled,
+      itemRemovedEnabled,
+      itemConsumedEnabled,
+      itemRestoredEnabled,
+    };
   },
 );
 
@@ -135,6 +201,19 @@ export const notifyDiscordOnItemAdded = onDocumentCreated(
     const expiryDate = String(item.expiryDate ?? 'No expiry date');
     const location = typeof item.location === 'string' ? item.location : null;
     const createdByUid = typeof item.createdByUid === 'string' ? item.createdByUid : null;
+    const activity: ItemActivity = {
+      eventType: 'item_added',
+      householdId,
+      householdName,
+      itemId,
+      itemName,
+      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+      expiryDate,
+      location,
+      actorUid: createdByUid,
+    };
+    activity.id = await writeActivity(activity);
+
     const discordConfigCache = new Map<string, DiscordWebhookConfig | null>();
 
     for (const recipientUid of memberUids) {
@@ -145,19 +224,78 @@ export const notifyDiscordOnItemAdded = onDocumentCreated(
       if (discordConfig?.itemAddedEnabled !== true) continue;
 
       await deliverItemAddedToDiscord({
-        householdId,
-        householdName,
-        itemId,
-        itemName,
-        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
-        expiryDate,
-        location,
-        createdByUid,
+        activity,
         recipientUid,
         webhookUrl: discordConfig.webhookUrl,
         nowUtc: DateTime.utc(),
       });
     }
+  },
+);
+
+export const recordItemUpdatedActivity = onDocumentUpdated(
+  {
+    document: 'households/{householdId}/items/{itemId}',
+    region: 'us-central1',
+    timeoutSeconds: 120,
+  },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (before == null || after == null) return;
+
+    const eventType = classifyItemUpdate(before, after);
+    if (eventType == null) return;
+
+    const householdId = String(event.params.householdId);
+    const itemId = String(event.params.itemId);
+    const householdDoc = await db.collection('households').doc(householdId).get();
+    const household = householdDoc.data();
+    const householdName = String(household?.name ?? `${APP_DISPLAY_NAME} household`);
+    const memberUids = householdMemberUids(household);
+    if (memberUids.length === 0) return;
+
+    const activity = activityFromItem({
+      eventType,
+      householdId,
+      householdName,
+      itemId,
+      item: after,
+      actorUid: typeof after.updatedByUid === 'string' ? after.updatedByUid : null,
+    });
+    activity.id = await writeActivity(activity);
+    await notifyDiscordForActivity(activity, memberUids);
+  },
+);
+
+export const recordItemRemovedActivity = onDocumentDeleted(
+  {
+    document: 'households/{householdId}/items/{itemId}',
+    region: 'us-central1',
+    timeoutSeconds: 120,
+  },
+  async (event) => {
+    const item = event.data?.data();
+    if (item == null) return;
+
+    const householdId = String(event.params.householdId);
+    const itemId = String(event.params.itemId);
+    const householdDoc = await db.collection('households').doc(householdId).get();
+    const household = householdDoc.data();
+    const householdName = String(household?.name ?? `${APP_DISPLAY_NAME} household`);
+    const memberUids = householdMemberUids(household);
+    if (memberUids.length === 0) return;
+
+    const activity = activityFromItem({
+      eventType: 'item_removed',
+      householdId,
+      householdName,
+      itemId,
+      item,
+      actorUid: typeof item.updatedByUid === 'string' ? item.updatedByUid : null,
+    });
+    activity.id = await writeActivity(activity);
+    await notifyDiscordForActivity(activity, memberUids);
   },
 );
 
@@ -380,72 +518,17 @@ async function deliverToDiscord(args: {
 }
 
 async function deliverItemAddedToDiscord(args: {
-  householdId: string;
-  householdName: string;
-  itemId: string;
-  itemName: string;
-  quantity: number;
-  expiryDate: string;
-  location: string | null;
-  createdByUid: string | null;
+  activity: ItemActivity;
   recipientUid: string;
   webhookUrl: string;
   nowUtc: DateTime;
 }): Promise<void> {
   const id = itemAddedDiscordDeliveryId(
-    args.householdId,
-    args.itemId,
+    args.activity.householdId,
+    args.activity.itemId,
     args.recipientUid,
   );
-  const deliveryRef = db.collection('notificationDeliveries').doc(id);
-  const claimed = await claimDelivery(deliveryRef, {
-    channel: 'discord',
-    eventType: 'item_added',
-    householdId: args.householdId,
-    itemId: args.itemId,
-    recipientUid: args.recipientUid,
-  }, args.nowUtc);
-  if (!claimed) return;
-
-  const actor = args.createdByUid == null || args.createdByUid === args.recipientUid
-    ? 'You'
-    : 'A household member';
-  const title = `${args.itemName} added`;
-  const body = `${actor} added ${args.itemName} to ${args.householdName}.`;
-
-  try {
-    await sendDiscordWebhook(args.webhookUrl, {
-      householdName: args.householdName,
-      itemName: args.itemName,
-      expiryDate: args.expiryDate,
-      title,
-      body,
-      quantity: args.quantity,
-      location: args.location,
-    });
-
-    await deliveryRef.set({
-      status: 'sent',
-      sentAt: DateTime.utc().toISO(),
-      successCount: 1,
-      failureCount: 0,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, {merge: true});
-  } catch (error) {
-    await deliveryRef.set({
-      status: 'failed',
-      failedAt: DateTime.utc().toISO(),
-      error: String(error),
-      successCount: 0,
-      failureCount: 1,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, {merge: true});
-    logger.error('Discord item-added delivery failed', {
-      deliveryId: id,
-      recipientUid: args.recipientUid,
-      error,
-    });
-  }
+  await deliverActivityToDiscord({...args, deliveryId: id});
 }
 
 async function deliverToRecipient(args: {
@@ -563,17 +646,223 @@ async function loadDiscordIntegration(uid: string): Promise<DiscordWebhookConfig
   const snapshot = await discordIntegrationRef(uid).get();
   const data = snapshot.data();
   if (typeof data?.webhookUrl !== 'string') return null;
-  if (data.enabled !== true && data.itemAddedEnabled !== true) return null;
+  if (
+    data.enabled !== true &&
+    data.itemAddedEnabled !== true &&
+    data.itemChangedEnabled !== true &&
+    data.itemRemovedEnabled !== true &&
+    data.itemConsumedEnabled !== true &&
+    data.itemRestoredEnabled !== true
+  ) return null;
 
   try {
     return {
       enabled: data.enabled === true,
       itemAddedEnabled: data.itemAddedEnabled === true,
+      itemChangedEnabled: data.itemChangedEnabled === true,
+      itemRemovedEnabled: data.itemRemovedEnabled === true,
+      itemConsumedEnabled: data.itemConsumedEnabled === true,
+      itemRestoredEnabled: data.itemRestoredEnabled === true,
       webhookUrl: normalizeDiscordWebhookUrl(data.webhookUrl),
     };
   } catch (error) {
     logger.error('Ignoring invalid stored Discord integration', {uid, error});
     return null;
+  }
+}
+
+function householdMemberUids(household: DocumentData | undefined): string[] {
+  return Array.isArray(household?.memberUids)
+    ? household.memberUids.filter((value): value is string => typeof value === 'string')
+    : [];
+}
+
+function activityFromItem(args: {
+  eventType: ActivityEventType;
+  householdId: string;
+  householdName: string;
+  itemId: string;
+  item: DocumentData;
+  actorUid: string | null;
+}): ItemActivity {
+  const quantity = Number(args.item.quantity ?? 1);
+  return {
+    eventType: args.eventType,
+    householdId: args.householdId,
+    householdName: args.householdName,
+    itemId: args.itemId,
+    itemName: String(args.item.name ?? 'Item'),
+    quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+    expiryDate: String(args.item.expiryDate ?? 'No expiry date'),
+    location: typeof args.item.location === 'string' ? args.item.location : null,
+    actorUid: args.actorUid,
+  };
+}
+
+function classifyItemUpdate(
+  before: DocumentData,
+  after: DocumentData,
+): ActivityEventType | null {
+  if (before.isConsumed !== true && after.isConsumed === true) return 'item_consumed';
+  if (before.isConsumed === true && after.isConsumed !== true) return 'item_restored';
+
+  const fields = [
+    'name',
+    'quantity',
+    'category',
+    'barcode',
+    'expiryDate',
+    'imageUrl',
+    'notes',
+    'location',
+  ];
+  return fields.some((field) => before[field] !== after[field]) ? 'item_changed' : null;
+}
+
+async function writeActivity(activity: ItemActivity): Promise<string> {
+  const ref = await db
+    .collection('households')
+    .doc(activity.householdId)
+    .collection('activity')
+    .add({
+      eventType: activity.eventType,
+      itemId: activity.itemId,
+      itemName: activity.itemName,
+      quantity: activity.quantity,
+      expiryDate: activity.expiryDate,
+      location: activity.location,
+      actorUid: activity.actorUid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  return ref.id;
+}
+
+async function notifyDiscordForActivity(
+  activity: ItemActivity,
+  memberUids: string[],
+): Promise<void> {
+  const discordConfigCache = new Map<string, DiscordWebhookConfig | null>();
+  for (const recipientUid of memberUids) {
+    const discordConfig = await getCachedDiscordIntegration(
+      recipientUid,
+      discordConfigCache,
+    );
+    if (!discordEnabledForActivity(discordConfig, activity.eventType)) continue;
+
+    await deliverActivityToDiscord({
+      activity,
+      recipientUid,
+      webhookUrl: discordConfig.webhookUrl,
+      nowUtc: DateTime.utc(),
+      deliveryId: activityDiscordDeliveryId(
+        activity.id ?? activity.eventType,
+        activity.householdId,
+        activity.itemId,
+        recipientUid,
+      ),
+    });
+  }
+}
+
+function discordEnabledForActivity(
+  config: DiscordWebhookConfig | null,
+  eventType: ActivityEventType,
+): config is DiscordWebhookConfig {
+  if (config == null) return false;
+  switch (eventType) {
+    case 'item_added':
+      return config.itemAddedEnabled === true;
+    case 'item_changed':
+      return config.itemChangedEnabled === true;
+    case 'item_removed':
+      return config.itemRemovedEnabled === true;
+    case 'item_consumed':
+      return config.itemConsumedEnabled === true;
+    case 'item_restored':
+      return config.itemRestoredEnabled === true;
+  }
+}
+
+async function deliverActivityToDiscord(args: {
+  activity: ItemActivity;
+  recipientUid: string;
+  webhookUrl: string;
+  nowUtc: DateTime;
+  deliveryId: string;
+}): Promise<void> {
+  const deliveryRef = db.collection('notificationDeliveries').doc(args.deliveryId);
+  const claimed = await claimDelivery(deliveryRef, {
+    channel: 'discord',
+    eventType: args.activity.eventType,
+    householdId: args.activity.householdId,
+    itemId: args.activity.itemId,
+    recipientUid: args.recipientUid,
+  }, args.nowUtc);
+  if (!claimed) return;
+
+  const message = renderActivityMessage(args.activity, args.recipientUid);
+
+  try {
+    await sendDiscordWebhook(args.webhookUrl, {
+      householdName: args.activity.householdName,
+      itemName: args.activity.itemName,
+      expiryDate: args.activity.expiryDate,
+      title: message.title,
+      body: message.body,
+      quantity: args.activity.quantity,
+      location: args.activity.location,
+    });
+
+    await deliveryRef.set({
+      status: 'sent',
+      sentAt: DateTime.utc().toISO(),
+      successCount: 1,
+      failureCount: 0,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  } catch (error) {
+    await deliveryRef.set({
+      status: 'failed',
+      failedAt: DateTime.utc().toISO(),
+      error: String(error),
+      successCount: 0,
+      failureCount: 1,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    logger.error('Discord activity delivery failed', {
+      deliveryId: args.deliveryId,
+      recipientUid: args.recipientUid,
+      error,
+    });
+  }
+}
+
+function renderActivityMessage(
+  activity: ItemActivity,
+  recipientUid: string,
+): {title: string; body: string} {
+  const actor = activity.actorUid == null || activity.actorUid === recipientUid
+    ? 'You'
+    : 'A household member';
+  const action = activityActionLabel(activity.eventType);
+  return {
+    title: `${activity.itemName} ${action.title}`,
+    body: `${actor} ${action.body} ${activity.itemName} in ${activity.householdName}.`,
+  };
+}
+
+function activityActionLabel(eventType: ActivityEventType): {title: string; body: string} {
+  switch (eventType) {
+    case 'item_added':
+      return {title: 'added', body: 'added'};
+    case 'item_changed':
+      return {title: 'updated', body: 'updated'};
+    case 'item_removed':
+      return {title: 'removed', body: 'removed'};
+    case 'item_consumed':
+      return {title: 'consumed', body: 'marked consumed'};
+    case 'item_restored':
+      return {title: 'restored', body: 'restored'};
   }
 }
 

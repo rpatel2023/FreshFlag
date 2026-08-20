@@ -146,6 +146,36 @@ test('household members including guests can read but outsiders cannot', async (
   await assertFails(getDoc(doc(outsider, 'households', 'house-1')));
 });
 
+test('activity is household-readable and backend-written only', async () => {
+  await seedHousehold({
+    memberUids: ['owner-1', 'member-1', 'guest-1'],
+    roles: {'guest-1': 'guest'},
+  });
+  await seed(async (db) => {
+    await setDoc(doc(db, 'households', 'house-1', 'activity', 'event-1'), {
+      eventType: 'item_added',
+      itemId: 'item-1',
+      itemName: 'Milk',
+      actorUid: 'member-1',
+      createdAt: Timestamp.fromDate(new Date('2026-08-20T12:00:00.000Z')),
+    });
+  });
+
+  const member = env.authenticatedContext('member-1').firestore();
+  const guest = env.authenticatedContext('guest-1').firestore();
+  const outsider = env.authenticatedContext('outsider-1').firestore();
+
+  await assertSucceeds(getDoc(doc(member, 'households', 'house-1', 'activity', 'event-1')));
+  await assertSucceeds(getDoc(doc(guest, 'households', 'house-1', 'activity', 'event-1')));
+  await assertFails(getDoc(doc(outsider, 'households', 'house-1', 'activity', 'event-1')));
+  await assertFails(setDoc(doc(member, 'households', 'house-1', 'activity', 'event-2'), {
+    eventType: 'item_removed',
+    itemId: 'item-2',
+    itemName: 'Bread',
+    createdAt: Timestamp.fromDate(new Date('2026-08-20T12:01:00.000Z')),
+  }));
+});
+
 test('owner and admin can manage notification rules; member and guest cannot', async () => {
   await seedHousehold({
     memberUids: ['owner-1', 'admin-1', 'member-1', 'guest-1'],
