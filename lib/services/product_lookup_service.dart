@@ -14,7 +14,8 @@ class ProductLookupException implements Exception {
 }
 
 class ProductLookupService {
-  ProductLookupService({http.Client? client}) : _client = client ?? http.Client();
+  ProductLookupService({http.Client? client})
+    : _client = client ?? http.Client();
 
   static const _host = 'world.openfoodfacts.org';
   static const _userAgent =
@@ -28,23 +29,24 @@ class ProductLookupService {
       return null;
     }
 
-    final uri = Uri.https(
-      _host,
-      '/api/v3/product/$barcode',
-      const {
-        'fields': 'code,product_name,generic_name,abbreviated_product_name,quantity',
-      },
-    );
+    final uri = Uri.https(_host, '/api/v3/product/$barcode', const {
+      'fields':
+          'code,product_name_en,generic_name_en,abbreviated_product_name_en,product_name,generic_name,abbreviated_product_name,quantity',
+      'lc': 'en',
+    });
 
     late http.Response response;
     try {
-      response = await _client.get(
-        uri,
-        headers: const {
-          'Accept': 'application/json',
-          'User-Agent': _userAgent,
-        },
-      ).timeout(const Duration(seconds: 8));
+      response = await _client
+          .get(
+            uri,
+            headers: const {
+              'Accept': 'application/json',
+              'Accept-Language': 'en',
+              'User-Agent': _userAgent,
+            },
+          )
+          .timeout(const Duration(seconds: 8));
     } catch (e) {
       throw const ProductLookupException(
         'Could not reach Open Food Facts. You can still add the item manually.',

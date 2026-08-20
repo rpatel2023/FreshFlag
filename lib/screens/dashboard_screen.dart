@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../config/app_brand.dart';
 import '../models/grocery_item.dart';
+import '../models/inventory_category.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 import '../viewmodels/household_viewmodel.dart';
@@ -11,6 +12,7 @@ import 'barcode_scanner_screen.dart';
 import 'item_detail_screen.dart';
 
 enum _InventoryView { active, consumed }
+
 enum _InventorySort { expiry, name, recentlyAdded }
 
 /// Firestore-backed inventory dashboard.
@@ -28,19 +30,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   _InventoryView _selectedView = _InventoryView.active;
   _InventorySort _sort = _InventorySort.expiry;
 
-  static const _categories = <String>[
-    'All',
-    'Fruits',
-    'Vegetables',
-    'Dairy',
-    'Meat',
-    'Bakery',
-    'Beverages',
-    'Snacks',
-    'Frozen',
-    'Other',
-  ];
-
   @override
   void dispose() {
     _searchController.dispose();
@@ -51,17 +40,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final inventory = context.watch<GroceryViewModel>();
     final household = context.watch<HouseholdViewModel>();
+    final categories = InventoryCategories.forItems(
+      inventory.items,
+      savedCategories: inventory.customCategories,
+      includeAll: true,
+    );
+    if (!categories.contains(_selectedCategory)) {
+      categories.add(_selectedCategory);
+    }
     final canWrite = household.canWriteInventory;
-    final activeItems = inventory.items.where((item) => !item.isConsumed).toList();
-    final consumedItems = inventory.items.where((item) => item.isConsumed).toList();
+    final activeItems = inventory.items
+        .where((item) => !item.isConsumed)
+        .toList();
+    final consumedItems = inventory.items
+        .where((item) => item.isConsumed)
+        .toList();
     final sourceItems = _selectedView == _InventoryView.active
         ? activeItems
         : consumedItems;
     final query = _searchQuery.trim().toLowerCase();
     final visibleItems = sourceItems.where((item) {
       final categoryMatches =
-          _selectedCategory == 'All' || item.category == _selectedCategory;
-      final searchMatches = query.isEmpty || item.name.toLowerCase().contains(query);
+          _selectedCategory == InventoryCategories.allLabel ||
+          item.category == _selectedCategory;
+      final searchMatches =
+          query.isEmpty || item.name.toLowerCase().contains(query);
       return categoryMatches && searchMatches;
     }).toList();
     _sortItems(visibleItems);
@@ -127,7 +130,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: ListTile(
                   leading: Icon(Icons.visibility_outlined),
                   title: Text('Guest access'),
-                  subtitle: Text('This household is read-only for your account.'),
+                  subtitle: Text(
+                    'This household is read-only for your account.',
+                  ),
                 ),
               ),
             const SizedBox(height: AppTheme.spacingL),
@@ -180,17 +185,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               height: 42,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: _categories.length,
+                itemCount: categories.length,
                 separatorBuilder: (_, __) =>
                     const SizedBox(width: AppTheme.spacingS),
                 itemBuilder: (context, index) {
-                  final category = _categories[index];
+                  final category = categories[index];
                   return ChoiceChip(
                     label: Text(category),
                     selected: _selectedCategory == category,
-                    onSelected: (_) => setState(
-                      () => _selectedCategory = category,
-                    ),
+                    onSelected: (_) =>
+                        setState(() => _selectedCategory = category),
                   );
                 },
               ),
@@ -209,7 +213,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             else if (visibleItems.isEmpty)
               _EmptyState(
                 consumedView: _selectedView == _InventoryView.consumed,
-                filtered: _selectedCategory != 'All' || query.isNotEmpty,
+                filtered:
+                    _selectedCategory != InventoryCategories.allLabel ||
+                    query.isNotEmpty,
               )
             else
               ...visibleItems.map(
@@ -218,7 +224,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: _InventoryCard(
                     item: item,
                     onTap: () => _openItem(context, item),
-                    onDelete: canWrite ? () => _deleteItem(context, item) : null,
+                    onDelete: canWrite
+                        ? () => _deleteItem(context, item)
+                        : null,
                   ),
                 ),
               ),
@@ -241,24 +249,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _openAddItem(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AddItemScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AddItemScreen()));
   }
 
   Future<void> _openScanner(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()));
   }
 
   Future<void> _openItem(BuildContext context, GroceryItem item) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ItemDetailScreen(
-          itemId: item.id,
-          initialItem: item,
-        ),
+        builder: (_) => ItemDetailScreen(itemId: item.id, initialItem: item),
       ),
     );
   }
@@ -288,9 +293,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await context.read<GroceryViewModel>().deleteItem(item.id);
     } catch (_) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete item.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not delete item.')));
     }
   }
 }
@@ -316,7 +321,11 @@ class _QuickAction extends StatelessWidget {
           padding: const EdgeInsets.all(AppTheme.spacingL),
           child: Column(
             children: [
-              Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 32,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(height: AppTheme.spacingS),
               Text(label, textAlign: TextAlign.center),
             ],
@@ -375,9 +384,9 @@ class _SummaryValue extends StatelessWidget {
       children: [
         Text(
           '$value',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
         Text(label),
       ],
@@ -402,12 +411,12 @@ class _InventoryCard extends StatelessWidget {
     final status = item.isConsumed
         ? 'Consumed'
         : item.isExpired
-            ? 'Expired'
-            : days == 0
-                ? 'Expires today'
-                : days == 1
-                    ? 'Expires tomorrow'
-                    : 'Expires in $days days';
+        ? 'Expired'
+        : days == 0
+        ? 'Expires today'
+        : days == 1
+        ? 'Expires tomorrow'
+        : 'Expires in $days days';
     final scheme = Theme.of(context).colorScheme;
     final metadata = <String>[
       item.category,
@@ -456,8 +465,8 @@ class _EmptyState extends StatelessWidget {
             filtered
                 ? Icons.search_off
                 : consumedView
-                    ? Icons.history
-                    : Icons.inventory_2_outlined,
+                ? Icons.history
+                : Icons.inventory_2_outlined,
             size: 64,
           ),
           const SizedBox(height: AppTheme.spacingM),
@@ -465,16 +474,16 @@ class _EmptyState extends StatelessWidget {
             filtered
                 ? 'No matching items'
                 : consumedView
-                    ? 'No consumed items'
-                    : 'No active items',
+                ? 'No consumed items'
+                : 'No active items',
           ),
           const SizedBox(height: AppTheme.spacingS),
           Text(
             filtered
                 ? 'Try a different search or category.'
                 : consumedView
-                    ? 'Items you mark consumed will remain available here to restore.'
-                    : 'Add an item manually or scan a barcode to get started.',
+                ? 'Items you mark consumed will remain available here to restore.'
+                : 'Add an item manually or scan a barcode to get started.',
             textAlign: TextAlign.center,
           ),
         ],

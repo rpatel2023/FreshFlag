@@ -67,7 +67,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ListTile(
                     leading: const Icon(Icons.people_outline),
                     title: const Text('Members & access'),
-                    subtitle: const Text('See household members and their roles'),
+                    subtitle: const Text(
+                      'See household members and their roles',
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -112,11 +114,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ListTile(
                       leading: const Icon(Icons.exit_to_app),
                       title: const Text('Leave household'),
-                      subtitle: const Text('Remove your access to this household'),
+                      subtitle: const Text(
+                        'Remove your access to this household',
+                      ),
                       enabled: !_leavingHousehold,
                       onTap: _leavingHousehold
                           ? null
-                          : () => _leaveHousehold(context, current.id, current.name),
+                          : () => _leaveHousehold(
+                              context,
+                              current.id,
+                              current.name,
+                            ),
                     ),
                   if (household.households.length > 1)
                     Padding(
@@ -233,6 +241,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String householdId,
     String householdName,
   ) async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -256,12 +265,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await HouseholdMemberService.instance.leaveHousehold(householdId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Left $householdName.')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Left $householdName.')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Could not leave household: $e')),
       );
     } finally {
@@ -274,9 +281,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await context.read<FirebaseAuthService>().signOut();
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not sign out: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not sign out: $e')));
     }
   }
 }

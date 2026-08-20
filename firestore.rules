@@ -79,6 +79,30 @@ service cloud.firestore {
         data.enabled is bool;
     }
 
+    function validInventoryCategoryData(data) {
+      return data.keys().hasOnly([
+          'name',
+          'normalizedName',
+          'createdByUid',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasAll([
+          'name',
+          'normalizedName',
+          'createdByUid',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.name is string &&
+        data.name.size() > 0 &&
+        data.name.size() <= 50 &&
+        data.normalizedName is string &&
+        data.normalizedName.size() > 0 &&
+        data.normalizedName.size() <= 50 &&
+        data.createdByUid is string;
+    }
+
     match /users/{uid} {
       allow read, create, update, delete: if isSelf(uid);
 
@@ -152,6 +176,17 @@ service cloud.firestore {
         allow read: if isHouseholdMember(householdId);
         allow create, update: if isHouseholdManager(householdId) &&
           validReminderRule(request.resource.data);
+        allow delete: if isHouseholdManager(householdId);
+      }
+
+      match /categories/{categoryId} {
+        allow read: if isHouseholdMember(householdId);
+        allow create: if canWriteInventory(householdId) &&
+          validInventoryCategoryData(request.resource.data) &&
+          request.resource.data.createdByUid == request.auth.uid;
+        allow update: if isHouseholdManager(householdId) &&
+          validInventoryCategoryData(request.resource.data) &&
+          request.resource.data.createdByUid == resource.data.createdByUid;
         allow delete: if isHouseholdManager(householdId);
       }
     }

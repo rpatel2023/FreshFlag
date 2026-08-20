@@ -112,6 +112,16 @@ function inventoryItem(uid, id = 'item-1') {
   };
 }
 
+function customCategory(uid, name = 'Pantry staples') {
+  return {
+    name,
+    normalizedName: name.toLowerCase(),
+    createdByUid: uid,
+    createdAt: '2026-08-20T12:00:00.000Z',
+    updatedAt: '2026-08-20T12:00:00.000Z',
+  };
+}
+
 test('household members including guests can read but outsiders cannot', async () => {
   await seedHousehold({
     memberUids: ['owner-1', 'member-1', 'guest-1'],
@@ -204,6 +214,41 @@ test('member can mutate inventory while guest is strictly read only', async () =
     {updatedByUid: 'guest-1', quantity: 3},
   ));
   await assertFails(deleteDoc(doc(guest, 'households', 'house-1', 'items', 'existing')));
+});
+
+test('custom categories are household-readable and writable only by inventory writers', async () => {
+  await seedHousehold({
+    memberUids: ['owner-1', 'admin-1', 'member-1', 'guest-1'],
+    roles: {'admin-1': 'admin', 'guest-1': 'guest'},
+  });
+  const owner = env.authenticatedContext('owner-1').firestore();
+  const admin = env.authenticatedContext('admin-1').firestore();
+  const member = env.authenticatedContext('member-1').firestore();
+  const guest = env.authenticatedContext('guest-1').firestore();
+  const outsider = env.authenticatedContext('outsider-1').firestore();
+
+  await assertSucceeds(setDoc(
+    doc(member, 'households', 'house-1', 'categories', 'pantry-staples'),
+    customCategory('member-1'),
+  ));
+  await assertSucceeds(getDoc(doc(guest, 'households', 'house-1', 'categories', 'pantry-staples')));
+  await assertFails(getDoc(doc(outsider, 'households', 'house-1', 'categories', 'pantry-staples')));
+  await assertFails(setDoc(
+    doc(guest, 'households', 'house-1', 'categories', 'guest-category'),
+    customCategory('guest-1', 'Guest category'),
+  ));
+  await assertFails(updateDoc(
+    doc(member, 'households', 'house-1', 'categories', 'pantry-staples'),
+    {name: 'Shelf staples'},
+  ));
+  await assertSucceeds(updateDoc(
+    doc(admin, 'households', 'house-1', 'categories', 'pantry-staples'),
+    {
+      ...customCategory('member-1', 'Shelf staples'),
+      normalizedName: 'shelf staples',
+    },
+  ));
+  await assertSucceeds(deleteDoc(doc(owner, 'households', 'house-1', 'categories', 'pantry-staples')));
 });
 
 test('users can only write their own device registrations', async () => {

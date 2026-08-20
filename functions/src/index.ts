@@ -6,6 +6,7 @@ import {
 } from 'firebase-admin/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
 import {logger} from 'firebase-functions';
+import {onDocumentCreated} from 'firebase-functions/v2/firestore';
 import {HttpsError, onCall} from 'firebase-functions/v2/https';
 import {onSchedule} from 'firebase-functions/v2/scheduler';
 import {DateTime} from 'luxon';
@@ -14,6 +15,7 @@ import {APP_DISPLAY_NAME} from './brand.js';
 import {
   DiscordWebhookConfig,
   discordDeliveryId,
+  itemAddedDiscordDeliveryId,
   normalizeDiscordWebhookUrl,
   sendDiscordWebhook,
 } from './discord_delivery.js';
@@ -47,6 +49,7 @@ export const getDiscordIntegrationStatus = onCall(
     return {
       configured: typeof data?.webhookUrl === 'string' && data.webhookUrl.length > 0,
       enabled: data?.enabled === true,
+      itemAddedEnabled: data?.itemAddedEnabled === true,
     };
   },
 );
@@ -55,13 +58,19 @@ export const setDiscordIntegration = onCall(
   {region: 'us-central1'},
   async (request) => {
     const uid = requireAuthenticatedUid(request.auth?.uid);
-    const enabled = request.data?.enabled === true;
     const webhookRaw = typeof request.data?.webhookUrl === 'string'
       ? request.data.webhookUrl.trim()
       : '';
     const ref = discordIntegrationRef(uid);
     const existing = await ref.get();
-    const existingUrl = existing.data()?.webhookUrl;
+    const existingData = existing.data();
+    const existingUrl = existingData?.webhookUrl;
+    const enabled = typeof request.data?.enabled === 'boolean'
+      ? request.data.enabled
+      : existingData?.enabled === true;
+    const itemAddedEnabled = typeof request.data?.itemAddedEnabled === 'boolean'
+      ? request.data.itemAddedEnabled
+      : existingData?.itemAddedEnabled === true;
 
     let webhookUrl: string | undefined;
     if (webhookRaw !== '') {
@@ -80,16 +89,75 @@ export const setDiscordIntegration = onCall(
         'A Discord webhook URL is required before enabling Discord reminders.',
       );
     }
+    if (itemAddedEnabled && webhookUrl == null) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A Discord webhook URL is required before enabling item added notifications.',
+      );
+    }
 
     await ref.set({
       type: 'discord',
       enabled,
+      itemAddedEnabled,
       ...(webhookUrl == null ? {} : {webhookUrl}),
       uid,
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
 
-    return {configured: webhookUrl != null, enabled};
+    return {configured: webhookUrl != null, enabled, itemAddedEnabled};
+  },
+);
+
+export const notifyDiscordOnItemAdded = onDocumentCreated(
+  {
+    document: 'households/{householdId}/items/{itemId}',
+    region: 'us-central1',
+    timeoutSeconds: 120,
+  },
+  async (event) => {
+    const snapshot = event.data;
+    if (snapshot == null) return;
+
+    const householdId = String(event.params.householdId);
+    const itemId = String(event.params.itemId);
+    const item = snapshot.data();
+    const householdDoc = await db.collection('households').doc(householdId).get();
+    const household = householdDoc.data();
+    const householdName = String(household?.name ?? `${APP_DISPLAY_NAME} household`);
+    const memberUids = Array.isArray(household?.memberUids)
+      ? household.memberUids.filter((value): value is string => typeof value === 'string')
+      : [];
+    if (memberUids.length === 0) return;
+
+    const itemName = String(item.name ?? 'Item');
+    const quantity = Number(item.quantity ?? 1);
+    const expiryDate = String(item.expiryDate ?? 'No expiry date');
+    const location = typeof item.location === 'string' ? item.location : null;
+    const createdByUid = typeof item.createdByUid === 'string' ? item.createdByUid : null;
+    const discordConfigCache = new Map<string, DiscordWebhookConfig | null>();
+
+    for (const recipientUid of memberUids) {
+      const discordConfig = await getCachedDiscordIntegration(
+        recipientUid,
+        discordConfigCache,
+      );
+      if (discordConfig?.itemAddedEnabled !== true) continue;
+
+      await deliverItemAddedToDiscord({
+        householdId,
+        householdName,
+        itemId,
+        itemName,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        expiryDate,
+        location,
+        createdByUid,
+        recipientUid,
+        webhookUrl: discordConfig.webhookUrl,
+        nowUtc: DateTime.utc(),
+      });
+    }
   },
 );
 
@@ -311,6 +379,75 @@ async function deliverToDiscord(args: {
   }
 }
 
+async function deliverItemAddedToDiscord(args: {
+  householdId: string;
+  householdName: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  expiryDate: string;
+  location: string | null;
+  createdByUid: string | null;
+  recipientUid: string;
+  webhookUrl: string;
+  nowUtc: DateTime;
+}): Promise<void> {
+  const id = itemAddedDiscordDeliveryId(
+    args.householdId,
+    args.itemId,
+    args.recipientUid,
+  );
+  const deliveryRef = db.collection('notificationDeliveries').doc(id);
+  const claimed = await claimDelivery(deliveryRef, {
+    channel: 'discord',
+    eventType: 'item_added',
+    householdId: args.householdId,
+    itemId: args.itemId,
+    recipientUid: args.recipientUid,
+  }, args.nowUtc);
+  if (!claimed) return;
+
+  const actor = args.createdByUid == null || args.createdByUid === args.recipientUid
+    ? 'You'
+    : 'A household member';
+  const title = `${args.itemName} added`;
+  const body = `${actor} added ${args.itemName} to ${args.householdName}.`;
+
+  try {
+    await sendDiscordWebhook(args.webhookUrl, {
+      householdName: args.householdName,
+      itemName: args.itemName,
+      expiryDate: args.expiryDate,
+      title,
+      body,
+      quantity: args.quantity,
+      location: args.location,
+    });
+
+    await deliveryRef.set({
+      status: 'sent',
+      sentAt: DateTime.utc().toISO(),
+      successCount: 1,
+      failureCount: 0,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  } catch (error) {
+    await deliveryRef.set({
+      status: 'failed',
+      failedAt: DateTime.utc().toISO(),
+      error: String(error),
+      successCount: 0,
+      failureCount: 1,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    logger.error('Discord item-added delivery failed', {
+      deliveryId: id,
+      recipientUid: args.recipientUid,
+      error,
+    });
+  }
+}
+
 async function deliverToRecipient(args: {
   householdId: string;
   itemId: string;
@@ -425,11 +562,13 @@ async function getCachedDiscordIntegration(
 async function loadDiscordIntegration(uid: string): Promise<DiscordWebhookConfig | null> {
   const snapshot = await discordIntegrationRef(uid).get();
   const data = snapshot.data();
-  if (data?.enabled !== true || typeof data.webhookUrl !== 'string') return null;
+  if (typeof data?.webhookUrl !== 'string') return null;
+  if (data.enabled !== true && data.itemAddedEnabled !== true) return null;
 
   try {
     return {
-      enabled: true,
+      enabled: data.enabled === true,
+      itemAddedEnabled: data.itemAddedEnabled === true,
       webhookUrl: normalizeDiscordWebhookUrl(data.webhookUrl),
     };
   } catch (error) {

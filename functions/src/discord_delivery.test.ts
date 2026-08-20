@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   buildDiscordWebhookBody,
   discordDeliveryId,
+  itemAddedDiscordDeliveryId,
   normalizeDiscordWebhookUrl,
 } from './discord_delivery.js';
 
@@ -30,6 +31,17 @@ test('Discord delivery ID is deterministic and recipient-specific', () => {
   const second = discordDeliveryId('h1', 'i1', 'r1', '2026-08-20', 'u1');
   const changedItem = discordDeliveryId('h1', 'i2', 'r1', '2026-08-20', 'u1');
   const changedRecipient = discordDeliveryId('h1', 'i1', 'r1', '2026-08-20', 'u2');
+  assert.equal(first, second);
+  assert.notEqual(first, changedItem);
+  assert.notEqual(first, changedRecipient);
+  assert.match(first, /^[a-f0-9]{64}$/);
+});
+
+test('Discord item-added delivery ID is deterministic and recipient-specific', () => {
+  const first = itemAddedDiscordDeliveryId('h1', 'i1', 'u1');
+  const second = itemAddedDiscordDeliveryId('h1', 'i1', 'u1');
+  const changedItem = itemAddedDiscordDeliveryId('h1', 'i2', 'u1');
+  const changedRecipient = itemAddedDiscordDeliveryId('h1', 'i1', 'u2');
   assert.equal(first, second);
   assert.notEqual(first, changedItem);
   assert.notEqual(first, changedRecipient);

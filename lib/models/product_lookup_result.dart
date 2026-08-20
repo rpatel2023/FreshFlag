@@ -14,6 +14,9 @@ class ProductLookupResult {
     Map<String, dynamic> product,
   ) {
     final productName = _firstNonEmptyString([
+      product['product_name_en'],
+      product['generic_name_en'],
+      product['abbreviated_product_name_en'],
       product['product_name'],
       product['generic_name'],
       product['abbreviated_product_name'],

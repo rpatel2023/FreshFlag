@@ -2,6 +2,8 @@
 
 Date: 2026-08-14
 
+Historical note: this audit describes the imported StayFresh baseline at the beginning of FreshFlag work. It is not the current product status. For current implementation state, read `docs/CURRENT_STATE.md` first.
+
 Upstream source: `Dhiraj706Sardar/stayfresh`
 Imported upstream SHA: `7431e9323ec448da843a4871ec94a0604557a224`
 FreshFlag repository: `rpatel2023/FreshFlag`

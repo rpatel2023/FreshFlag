@@ -6,22 +6,28 @@ void main() {
     final status = DiscordIntegrationStatus.fromData({
       'configured': true,
       'enabled': true,
+      'itemAddedEnabled': true,
     });
 
     expect(status.configured, isTrue);
     expect(status.enabled, isTrue);
+    expect(status.itemAddedEnabled, isTrue);
   });
 
-  test('Discord integration status defaults safely for malformed responses', () {
-    for (final value in <Object?>[
-      null,
-      'invalid',
-      <String, Object?>{},
-      <String, Object?>{'configured': 'true', 'enabled': 1},
-    ]) {
-      final status = DiscordIntegrationStatus.fromData(value);
-      expect(status.configured, isFalse);
-      expect(status.enabled, isFalse);
-    }
-  });
+  test(
+    'Discord integration status defaults safely for malformed responses',
+    () {
+      for (final value in <Object?>[
+        null,
+        'invalid',
+        <String, Object?>{},
+        <String, Object?>{'configured': 'true', 'enabled': 1},
+      ]) {
+        final status = DiscordIntegrationStatus.fromData(value);
+        expect(status.configured, isFalse);
+        expect(status.enabled, isFalse);
+        expect(status.itemAddedEnabled, isFalse);
+      }
+    },
+  );
 }

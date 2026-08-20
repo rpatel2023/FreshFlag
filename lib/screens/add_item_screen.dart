@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/grocery_item.dart';
+import '../models/inventory_category.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 
@@ -37,19 +38,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _locationController = TextEditingController();
   final _notesController = TextEditingController();
   DateTime? _expiryDate;
-  String _category = 'Other';
-
-  static const _categories = <String>[
-    'Fruits',
-    'Vegetables',
-    'Dairy',
-    'Meat',
-    'Bakery',
-    'Beverages',
-    'Snacks',
-    'Frozen',
-    'Other',
-  ];
+  String _category = InventoryCategories.otherLabel;
+  static const _customCategoryValue = '__freshflag_custom_category__';
 
   bool get _isEditing => widget.editItem != null;
 
@@ -63,7 +53,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
       _locationController.text = existing.location ?? '';
       _notesController.text = existing.notes ?? '';
       _expiryDate = existing.expiryDate;
-      _category = _categories.contains(existing.category) ? existing.category : 'Other';
+      _category =
+          InventoryCategories.clean(existing.category) ??
+          InventoryCategories.otherLabel;
       return;
     }
 
@@ -75,8 +67,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
       _quantityController.text = widget.initialQuantity.toString();
     }
     final initialCategory = widget.initialCategory;
-    if (initialCategory != null && _categories.contains(initialCategory)) {
-      _category = initialCategory;
+    if (initialCategory != null) {
+      _category =
+          InventoryCategories.clean(initialCategory) ??
+          InventoryCategories.otherLabel;
     }
     _locationController.text = widget.initialLocation?.trim() ?? '';
   }
@@ -94,6 +88,14 @@ class _AddItemScreenState extends State<AddItemScreen> {
   Widget build(BuildContext context) {
     final inventory = context.watch<GroceryViewModel>();
     final barcode = widget.editItem?.barcode ?? widget.initialBarcode;
+    final categories = InventoryCategories.forItems(
+      inventory.items,
+      savedCategories: inventory.customCategories,
+    );
+    final categoryItems = <String>[
+      ...categories,
+      if (!categories.contains(_category)) _category,
+    ];
 
     return Scaffold(
       appBar: AppBar(title: Text(_isEditing ? 'Edit item' : 'Add item')),
@@ -112,8 +114,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
                         widget.fromFavorite
                             ? Icons.star
                             : widget.initialName == null
-                                ? Icons.qr_code
-                                : Icons.check_circle_outline,
+                            ? Icons.qr_code
+                            : Icons.check_circle_outline,
                         color: widget.fromFavorite || widget.initialName != null
                             ? Theme.of(context).colorScheme.primary
                             : null,
@@ -122,8 +124,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
                         widget.fromFavorite
                             ? 'Favourite product'
                             : widget.initialName == null
-                                ? 'Scanned barcode'
-                                : 'Product recognized',
+                            ? 'Scanned barcode'
+                            : 'Product recognized',
                       ),
                       subtitle: Text(
                         widget.initialName == null
@@ -148,22 +150,25 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 ),
                 const SizedBox(height: AppTheme.spacingM),
                 DropdownButtonFormField<String>(
+                  key: ValueKey(_category),
                   initialValue: _category,
                   decoration: const InputDecoration(
                     labelText: 'Category',
                     prefixIcon: Icon(Icons.category_outlined),
                   ),
-                  items: _categories
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => _category = value);
-                  },
+                  items: [
+                    ...categoryItems.map(
+                      (category) => DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      ),
+                    ),
+                    const DropdownMenuItem(
+                      value: _customCategoryValue,
+                      child: Text('Create category...'),
+                    ),
+                  ],
+                  onChanged: _selectCategory,
                 ),
                 const SizedBox(height: AppTheme.spacingM),
                 TextFormField(
@@ -201,11 +206,26 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   spacing: AppTheme.spacingS,
                   runSpacing: AppTheme.spacingS,
                   children: [
-                    _ExpiryShortcut(label: 'Today', onTap: () => _setExpiryOffset(0)),
-                    _ExpiryShortcut(label: '+3 days', onTap: () => _setExpiryOffset(3)),
-                    _ExpiryShortcut(label: '+7 days', onTap: () => _setExpiryOffset(7)),
-                    _ExpiryShortcut(label: '+14 days', onTap: () => _setExpiryOffset(14)),
-                    _ExpiryShortcut(label: '+30 days', onTap: () => _setExpiryOffset(30)),
+                    _ExpiryShortcut(
+                      label: 'Today',
+                      onTap: () => _setExpiryOffset(0),
+                    ),
+                    _ExpiryShortcut(
+                      label: '+3 days',
+                      onTap: () => _setExpiryOffset(3),
+                    ),
+                    _ExpiryShortcut(
+                      label: '+7 days',
+                      onTap: () => _setExpiryOffset(7),
+                    ),
+                    _ExpiryShortcut(
+                      label: '+14 days',
+                      onTap: () => _setExpiryOffset(14),
+                    ),
+                    _ExpiryShortcut(
+                      label: '+30 days',
+                      onTap: () => _setExpiryOffset(30),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppTheme.spacingS),
@@ -217,7 +237,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
                           ? 'Choose a date'
                           : GroceryItem.formatDateOnly(_expiryDate!),
                     ),
-                    subtitle: _expiryDate == null ? const Text('Required') : null,
+                    subtitle: _expiryDate == null
+                        ? const Text('Required')
+                        : null,
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _pickExpiryDate,
                   ),
@@ -236,7 +258,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   Text(
                     inventory.error!,
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
                 const SizedBox(height: AppTheme.spacingXL),
@@ -288,9 +312,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_expiryDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choose an expiry date.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Choose an expiry date.')));
       return;
     }
 
@@ -303,7 +327,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
             id: DateTime.now().microsecondsSinceEpoch.toString(),
             name: _nameController.text.trim(),
             quantity: quantity,
-            category: _category,
+            category:
+                InventoryCategories.clean(_category) ??
+                InventoryCategories.otherLabel,
             barcode: widget.initialBarcode,
             addedDate: DateTime.now(),
             expiryDate: _expiryDate!,
@@ -314,7 +340,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
             id: existing.id,
             name: _nameController.text.trim(),
             quantity: quantity,
-            category: _category,
+            category:
+                InventoryCategories.clean(_category) ??
+                InventoryCategories.otherLabel,
             barcode: existing.barcode,
             addedDate: existing.addedDate,
             expiryDate: _expiryDate!,
@@ -340,7 +368,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_isEditing ? 'Could not update item.' : 'Could not save item.'),
+          content: Text(
+            _isEditing ? 'Could not update item.' : 'Could not save item.',
+          ),
         ),
       );
     }
@@ -349,6 +379,69 @@ class _AddItemScreenState extends State<AddItemScreen> {
   static String? _clean(String value) {
     final cleaned = value.trim();
     return cleaned.isEmpty ? null : cleaned;
+  }
+
+  Future<void> _selectCategory(String? value) async {
+    if (value == null) return;
+    if (value != _customCategoryValue) {
+      setState(() => _category = value);
+      return;
+    }
+
+    final created = await _showCreateCategoryDialog();
+    if (!mounted) return;
+    if (created == null) return;
+    try {
+      await context.read<GroceryViewModel>().createCustomCategory(created);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not save category.')));
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _category = created);
+  }
+
+  Future<String?> _showCreateCategoryDialog() async {
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Create category'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Category name',
+              prefixIcon: Icon(Icons.category_outlined),
+            ),
+            onSubmitted: (_) {
+              final cleaned = InventoryCategories.clean(controller.text);
+              if (cleaned != null) Navigator.pop(dialogContext, cleaned);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final cleaned = InventoryCategories.clean(controller.text);
+                if (cleaned != null) Navigator.pop(dialogContext, cleaned);
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 }
 

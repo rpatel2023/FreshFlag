@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/grocery_item.dart';
+import '../models/inventory_category.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/firebase_firestore_service.dart';
 
@@ -13,17 +14,19 @@ import '../services/firebase_firestore_service.dart';
 /// reminders across household members.
 class GroceryViewModel extends ChangeNotifier {
   List<GroceryItem> _items = [];
+  List<String> _customCategories = [];
   bool _isLoading = false;
   bool _isUploading = false;
   String? _error;
   String? _householdId;
   StreamSubscription<List<GroceryItem>>? _inventorySubscription;
+  StreamSubscription<List<String>>? _categorySubscription;
 
-  final FirebaseFirestoreService _firestore =
-      FirebaseFirestoreService.instance;
+  final FirebaseFirestoreService _firestore = FirebaseFirestoreService.instance;
   final FirebaseAuthService _auth = FirebaseAuthService.instance;
 
   List<GroceryItem> get items => List.unmodifiable(_items);
+  List<String> get customCategories => List.unmodifiable(_customCategories);
   bool get isLoading => _isLoading;
   bool get isUploading => _isUploading;
   String? get error => _error;
@@ -31,8 +34,7 @@ class GroceryViewModel extends ChangeNotifier {
 
   List<GroceryItem> get expiredItems => _items
       .where(
-        (item) =>
-            !item.isConsumed && item.expiryStatus == ExpiryStatus.expired,
+        (item) => !item.isConsumed && item.expiryStatus == ExpiryStatus.expired,
       )
       .toList();
 
@@ -52,9 +54,11 @@ class GroceryViewModel extends ChangeNotifier {
   Future<void> bindHousehold(String householdId) async {
     if (_householdId == householdId && _inventorySubscription != null) return;
     await _inventorySubscription?.cancel();
+    await _categorySubscription?.cancel();
     _householdId = householdId;
     _firestore.setHousehold(householdId);
     _items = [];
+    _customCategories = [];
     _error = null;
     _setLoading(true);
 
@@ -70,6 +74,17 @@ class GroceryViewModel extends ChangeNotifier {
         _items = [];
         _isLoading = false;
         _error = 'Failed to stream inventory: $error';
+        notifyListeners();
+      },
+    );
+
+    _categorySubscription = _firestore.streamCustomCategories().listen(
+      (categories) {
+        _customCategories = categories;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        _error = 'Failed to stream categories: $error';
         notifyListeners();
       },
     );
@@ -103,6 +118,25 @@ class GroceryViewModel extends ChangeNotifier {
       rethrow;
     } finally {
       _setUploading(false);
+    }
+  }
+
+  Future<void> createCustomCategory(String name) async {
+    _requireContext('create category');
+    final normalized = InventoryCategories.clean(name);
+    if (normalized == null) throw ArgumentError('Category name is required');
+    final knownCategories = InventoryCategories.forItems(
+      _items,
+      savedCategories: _customCategories,
+    );
+    if (knownCategories.contains(normalized)) return;
+    final uid = _auth.currentUserId!;
+    _clearError();
+    try {
+      await _firestore.saveCustomCategory(name: normalized, createdByUid: uid);
+    } catch (e) {
+      _setError('Failed to save category: $e');
+      rethrow;
     }
   }
 
@@ -172,10 +206,13 @@ class GroceryViewModel extends ChangeNotifier {
 
   Future<void> reset() async {
     await _inventorySubscription?.cancel();
+    await _categorySubscription?.cancel();
     _inventorySubscription = null;
+    _categorySubscription = null;
     _householdId = null;
     _firestore.setHousehold(null);
     _items = [];
+    _customCategories = [];
     _isLoading = false;
     _isUploading = false;
     _error = null;
@@ -222,6 +259,7 @@ class GroceryViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _inventorySubscription?.cancel();
+    _categorySubscription?.cancel();
     super.dispose();
   }
 }

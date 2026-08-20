@@ -2,11 +2,11 @@
 
 This file is the current project handoff and progress log. The detailed historical log remains permanently available in Git history; the pre-handoff version is the `CHANGELOG.md` blob present at merge commit `705d498977fef87c2e38d7fe8a6085ba1edce5f3`.
 
-## Current state — 2026-08-15
+## Current state — 2026-08-20
 
-Fresh Flag is in physical two-iPhone acceptance testing using the SideStore/private-distribution path. Production Firebase Auth, Firestore, scheduled reminder Functions, and per-user Discord delivery are already deployed from the earlier production checkpoint. Source changes after that checkpoint still require a production Firebase redeploy and/or a new SideStore IPA before they can be physically validated.
+Fresh Flag has moved through the two-iPhone SideStore/private-distribution acceptance-testing phase. The current installed phone build includes the PR #15 through PR #18 feature set, and production Firebase/Auth/Firestore/Functions behavior has been validated for the tested core flows.
 
-### Physical validation already passed on the currently installed build
+### Physical validation passed on the installed builds
 
 - SideStore iOS build #4 launches successfully on a physical iPhone.
 - Firebase email/password sign-in works after the Firebase Auth Pigeon alignment fix.
@@ -26,6 +26,13 @@ Fresh Flag is in physical two-iPhone acceptance testing using the SideStore/priv
 - **Cross-device realtime consume/restore passed:** consuming the shared test item on the second iPhone removed it automatically from the first iPhone's active inventory, and restoring it on the second iPhone made it reappear automatically on the first iPhone without refresh/navigation.
 - **Second-user personal Discord integration passed:** the second Fresh Flag user configured their own Discord webhook and its manual test message arrived successfully.
 - **Two-recipient scheduled Discord fanout passed:** one real scheduled household reminder was independently delivered to both configured users' Discord destinations.
+- **PR #15 through PR #18 current-build acceptance passed:** the latest phone build includes consumed-item navigation, household roles/member management, Fresh Flag branding, item editing, and personal Favourites.
+- **Role elevation passed:** the Owner can manage member access and promote a trusted household member without making them Owner.
+- **Admin capability passed:** the promoted trusted member can manage reminder rules and invites as intended.
+- **Guest restriction passed:** Guest access remains genuinely read-only for household inventory while personal Favourites remain manageable and **Add again** is disabled.
+- **Personal Favourites passed:** favourites are per Firebase user and are not inherited by the other household account.
+- **Inventory polish passed:** edit item, expiry shortcuts, inventory search/sort, cleaner card metadata, tappable reminder rows, and consumed Undo were validated on device.
+- **Persistence passed:** relaunch preserved auth, household selection, inventory, Favourites, Discord configuration, and SideStore refresh health.
 
 ## PR #15 — Consumed inventory recovery — MERGED
 
@@ -35,7 +42,7 @@ PR #15 fixed the physical-test defect where consumed items became unreachable af
 - Shows separate Active, Expiring, Expired, and Consumed counts.
 - Keeps consumed items reopenable so **Restore to inventory** remains reachable.
 - Merged to `main` as `55672e641a1365a4e4604c11b66512b5da053107`.
-- The currently installed physical build predates this fix.
+- This fix is present in the current installed phone build and has been validated.
 
 ## PR #16 — Household roles and member management — MERGED
 
@@ -57,7 +64,7 @@ Validation on final PR #16 head `085dc03bd62fbec2a76ff098b8f206f4ac83d0c5`:
 - Backend CI run `31895438318`: **success**.
 - Flutter CI run `31895438384`: **success**.
 - Merged to `main` as `705d498977fef87c2e38d7fe8a6085ba1edce5f3`.
-- No macOS SideStore IPA build was triggered.
+- This feature set is present in the current installed phone build and has been validated.
 
 ## PR #17 — Fresh Flag branding/text normalization — MERGED
 
@@ -75,7 +82,7 @@ Validation on PR #17 head `8b123d8ea97f5bd62316e566854a16b4efac4c99`:
 - Backend CI run `31896789088`: **success**.
 - Flutter CI run `31896789118`: **success**.
 - Merged to `main` as `68974ae5f58368bce5941a55aa332b59544c2a44`.
-- No macOS SideStore IPA build was triggered.
+- This branding work is present in the current installed phone build and has been validated.
 
 ## PR #18 — Favourites and final pre-IPA inventory polish — MERGED
 
@@ -119,36 +126,27 @@ Validation on final PR #18 head `96c3ca8a5f132f0a92ae1951a6eff9c2bba074d2`:
 - Backend CI run `31897972971`: **success** — Functions build/tests and Firestore Emulator authorization tests passed.
 - Flutter CI run `31897972983`: **success** — dependency resolution, lockfile reproducibility, Flutter tests, analyzer, and Linux release build passed.
 - PR #18 merged to `main` as `79a2dc00f793ee448615e3cd2bdc9284491a6c89`.
-- No macOS SideStore IPA build was triggered.
+- This feature set is present in the current installed phone build and has been validated.
 
-## Production/runtime work still pending
+## Current handoff
 
-The source merges do **not** by themselves update the two installed iPhones or the production Firebase backend.
+The old deployment/build/physical-acceptance gate is complete. Do not send future agents back through the PR #15 through PR #18 acceptance checklist unless a new regression is reported.
 
-All worthwhile tests on the currently installed pre-PR15/16/17/18 build are complete. The next gate is now:
+### Unreleased source changes — 2026-08-20
 
-1. Deploy **current-main Firestore rules + Cloud Functions** to Firebase project `freshflag`.
-   - This deploy activates PR #16 role enforcement/callables.
-   - It activates the reminder grammar and Discord display-brand updates.
-   - It activates PR #18 personal-Favourites Firestore access.
-2. Run one manual **Build SideStore IPA** workflow from current `main`.
-3. Update both iPhones without deleting the existing app.
+- Barcode/Open Food Facts lookup now requests English responses and prefers English product-name fields before localized fallback fields, addressing scanned items appearing in French.
+- Add/Edit item now lets users create a persistent custom household category directly from the category picker.
+- Dashboard category filters now include saved household categories plus categories found on actual inventory items.
+- Discord settings now include a separate per-user opt-in for item-added notifications.
+- A new Cloud Functions item-create trigger fans out Discord item-added messages only to household members who configured Discord and enabled that event.
+- Fixed the existing leave-household snackbar async-context analyzer lint while keeping behavior unchanged.
 
-The next IPA must therefore contain **PR #15 + PR #16 + PR #17 + PR #18** in one batched build.
+Validation completed locally:
 
-## Next physical acceptance sequence after deployment/build
+- `flutter analyze`
+- `flutter test test/widget_test.dart test/discord_integration_status_test.dart`
+- `cd functions && npm test`
 
-1. Delete the temporary `Two user reminder test` rule first if it still exists.
-2. Confirm the iPhone home-screen/display branding says **Fresh Flag**.
-3. Confirm Active / Consumed navigation and Restore work using the PR #15 UI.
-4. Open **Settings → Members & access** on the Owner phone and promote the spouse from Member to Admin.
-5. Confirm the spouse's already-open app changes to Admin without restart and can manage reminder rules and invites.
-6. Validate **Edit item** and confirm the change propagates to the other iPhone in real time.
-7. Validate expiry shortcuts, inventory search, each sort option, cleaner card metadata, and tappable reminder → Item details.
-8. Mark an item consumed and validate **Undo**.
-9. Star an item, open **Favourites**, use **Add again**, confirm product fields are prefilled but expiry is blank/freshly selected, and save it without rescanning.
-10. Confirm Favourites are personal: the wife's account does not automatically inherit the owner's favourites; each account can create its own.
-11. Temporarily set a test account to Guest and confirm inventory remains genuinely read-only while personal Favourites can still be viewed/managed and **Add again** is disabled.
-12. Relaunch both apps and verify auth, household selection, persisted inventory, Favourites, Discord configuration, and SideStore refresh remain healthy.
+Attempted `cd security-tests && npm test`, but the Firestore Emulator could not start because Java is not installed on PATH in this environment.
 
-Do not expand into unrelated features until this acceptance sequence is stable.
+This source batch still needs Cloud Functions/rules deployment, a fresh IPA, and phone validation before it is considered current-build behavior.

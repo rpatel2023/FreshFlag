@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:freshflag/models/grocery_item.dart';
 import 'package:freshflag/models/household.dart';
 import 'package:freshflag/models/household_invite.dart';
+import 'package:freshflag/models/inventory_category.dart';
 import 'package:freshflag/models/notification_rule.dart';
 import 'package:freshflag/models/product_lookup_result.dart';
 
@@ -42,26 +43,29 @@ void main() {
       expect(restored.updatedAt, updatedAt);
     });
 
-    test('supports legacy timestamp expiry records and missing audit fields', () {
-      final restored = GroceryItem.fromMap({
-        'id': 'legacy-1',
-        'name': 'Bread',
-        'quantity': 1,
-        'category': 'Bakery',
-        'barcode': null,
-        'addedDate': '2026-08-14T12:34:56.000',
-        'expiryDate': '2026-08-17T21:15:00.000',
-        'imageUrl': null,
-      });
+    test(
+      'supports legacy timestamp expiry records and missing audit fields',
+      () {
+        final restored = GroceryItem.fromMap({
+          'id': 'legacy-1',
+          'name': 'Bread',
+          'quantity': 1,
+          'category': 'Bakery',
+          'barcode': null,
+          'addedDate': '2026-08-14T12:34:56.000',
+          'expiryDate': '2026-08-17T21:15:00.000',
+          'imageUrl': null,
+        });
 
-      expect(restored.expiryDate, DateTime(2026, 8, 17));
-      expect(restored.toMap()['expiryDate'], '2026-08-17');
-      expect(restored.notes, isNull);
-      expect(restored.location, isNull);
-      expect(restored.isConsumed, isFalse);
-      expect(restored.householdId, isNull);
-      expect(restored.createdByUid, isNull);
-    });
+        expect(restored.expiryDate, DateTime(2026, 8, 17));
+        expect(restored.toMap()['expiryDate'], '2026-08-17');
+        expect(restored.notes, isNull);
+        expect(restored.location, isNull);
+        expect(restored.isConsumed, isFalse);
+        expect(restored.householdId, isNull);
+        expect(restored.createdByUid, isNull);
+      },
+    );
 
     test('normalizes constructor expiry values to calendar dates', () {
       final item = GroceryItem(
@@ -130,10 +134,7 @@ void main() {
 
   group('HouseholdInvite', () {
     test('normalizes human-entered invite codes', () {
-      expect(
-        HouseholdInvite.normalizeCode(' abcd-efgh 2345 '),
-        'ABCDEFGH2345',
-      );
+      expect(HouseholdInvite.normalizeCode(' abcd-efgh 2345 '), 'ABCDEFGH2345');
     });
 
     test('reports active only while status is active and unexpired', () {
@@ -181,8 +182,14 @@ void main() {
 
     test('normalizes and validates local send time', () {
       expect(NotificationRule.normalizeSendTime('9:05'), '09:05');
-      expect(() => NotificationRule.normalizeSendTime('24:00'), throwsFormatException);
-      expect(() => NotificationRule.normalizeSendTime('9:5'), throwsFormatException);
+      expect(
+        () => NotificationRule.normalizeSendTime('24:00'),
+        throwsFormatException,
+      );
+      expect(
+        () => NotificationRule.normalizeSendTime('9:5'),
+        throwsFormatException,
+      );
     });
 
     test('renders supported message variables', () {
@@ -199,6 +206,15 @@ void main() {
   });
 
   group('ProductLookupResult', () {
+    test('prefers English Open Food Facts product names', () {
+      final product = ProductLookupResult.fromOpenFoodFactsProduct('12345678', {
+        'product_name': 'Lait partiellement ecreme',
+        'product_name_en': 'Partly skimmed milk',
+        'generic_name_en': 'Milk',
+      });
+      expect(product.name, 'Partly skimmed milk');
+    });
+
     test('parses the Open Food Facts fields FreshFlag needs', () {
       final product = ProductLookupResult.fromOpenFoodFactsProduct(
         '3017620422003',
@@ -210,22 +226,60 @@ void main() {
     });
 
     test('falls back to a generic product name', () {
-      final product = ProductLookupResult.fromOpenFoodFactsProduct(
-        '12345678',
-        {'product_name': '   ', 'generic_name': 'Tomato sauce'},
-      );
+      final product = ProductLookupResult.fromOpenFoodFactsProduct('12345678', {
+        'product_name': '   ',
+        'generic_name': 'Tomato sauce',
+      });
       expect(product.name, 'Tomato sauce');
       expect(product.quantityLabel, isNull);
     });
 
     test('rejects records without a usable display name', () {
       expect(
-        () => ProductLookupResult.fromOpenFoodFactsProduct(
-          '12345678',
-          {'quantity': '500 g'},
-        ),
+        () => ProductLookupResult.fromOpenFoodFactsProduct('12345678', {
+          'quantity': '500 g',
+        }),
         throwsFormatException,
       );
+    });
+  });
+
+  group('InventoryCategories', () {
+    test('normalizes and includes custom categories from inventory items', () {
+      final categories = InventoryCategories.forItems([
+        GroceryItem(
+          id: 'item-1',
+          name: 'Soup',
+          quantity: 1,
+          category: '  Canned goods  ',
+          addedDate: DateTime(2026, 8, 20),
+          expiryDate: DateTime(2026, 9, 1),
+        ),
+      ], includeAll: true);
+
+      expect(categories.first, InventoryCategories.allLabel);
+      expect(categories, contains('Canned goods'));
+      expect(categories, contains(InventoryCategories.otherLabel));
+    });
+
+    test(
+      'includes saved custom categories without matching inventory items',
+      () {
+        final categories = InventoryCategories.forItems(
+          const [],
+          savedCategories: const ['Pantry staples'],
+        );
+
+        expect(categories, contains('Pantry staples'));
+      },
+    );
+
+    test('cleans blank and repeated-space category names', () {
+      expect(
+        InventoryCategories.clean('  Pantry   staples '),
+        'Pantry staples',
+      );
+      expect(InventoryCategories.clean('   '), isNull);
     });
   });
 }

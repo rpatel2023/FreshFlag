@@ -35,6 +35,7 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
   Widget build(BuildContext context) {
     final status = _status;
     final enabled = status?.enabled ?? false;
+    final itemAddedEnabled = status?.itemAddedEnabled ?? false;
     final configured = status?.configured ?? false;
 
     return Scaffold(
@@ -63,11 +64,11 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             Text(
-                              enabled
-                                  ? 'Your expiry reminders are also sent to your Discord destination.'
+                              enabled || itemAddedEnabled
+                                  ? 'Your selected Fresh Flag notifications are sent to Discord.'
                                   : configured
-                                      ? 'Your webhook is saved but Discord reminders are disabled.'
-                                      : 'Add your own Discord channel webhook to receive reminders without relying on iPhone push notifications.',
+                                  ? 'Your webhook is saved but Discord notifications are disabled.'
+                                  : 'Add your own Discord channel webhook to receive reminders without relying on iPhone push notifications.',
                             ),
                           ],
                         ),
@@ -124,7 +125,9 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
                     onPressed: _saving ? null : _saveWebhook,
                     icon: const Icon(Icons.link),
                     label: Text(
-                      configured ? 'Save replacement & enable' : 'Save & enable',
+                      configured
+                          ? 'Save replacement & enable'
+                          : 'Save & enable',
                     ),
                   ),
                   if (configured) ...[
@@ -137,6 +140,15 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
                       ),
                       value: enabled,
                       onChanged: _saving ? null : _setEnabled,
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Item added notifications'),
+                      subtitle: const Text(
+                        'Send a Discord message when someone adds an item to your household',
+                      ),
+                      value: itemAddedEnabled,
+                      onChanged: _saving ? null : _setItemAddedEnabled,
                     ),
                     OutlinedButton.icon(
                       onPressed: _testing ? null : _sendTest,
@@ -214,6 +226,22 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
     }
   }
 
+  Future<void> _setItemAddedEnabled(bool enabled) async {
+    setState(() => _saving = true);
+    try {
+      final status = await DiscordReminderService.instance.save(
+        itemAddedEnabled: enabled,
+      );
+      if (!mounted) return;
+      setState(() => _status = status);
+    } catch (_) {
+      if (!mounted) return;
+      _showError('Could not update your Discord notifications.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _sendTest() async {
     setState(() => _testing = true);
     try {
@@ -231,10 +259,14 @@ class _DiscordRemindersScreenState extends State<DiscordRemindersScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

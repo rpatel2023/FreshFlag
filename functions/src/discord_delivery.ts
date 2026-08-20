@@ -5,6 +5,7 @@ import {APP_DISPLAY_NAME} from './brand.js';
 export interface DiscordWebhookConfig {
   enabled: boolean;
   webhookUrl: string;
+  itemAddedEnabled?: boolean;
 }
 
 export interface DiscordReminderPayload {
@@ -60,6 +61,20 @@ export function discordDeliveryId(
     itemId,
     ruleId,
     expiryDate,
+    recipientUid,
+  ].join('|');
+  return createHash('sha256').update(raw).digest('hex');
+}
+
+export function itemAddedDiscordDeliveryId(
+  householdId: string,
+  itemId: string,
+  recipientUid: string,
+): string {
+  const raw = [
+    'discord-item-added',
+    householdId,
+    itemId,
     recipientUid,
   ].join('|');
   return createHash('sha256').update(raw).digest('hex');
