@@ -24,7 +24,7 @@ Do not treat role management, favourites, or the old post-IPA checklist as pendi
 The newest source batch is implemented but not yet validated on the phones:
 
 - English-preferred Open Food Facts barcode lookup;
-- household barcode product cache for manually entered products;
+- household barcode product cache for manually entered products, including one-time backfill from existing barcode inventory;
 - persistent household custom categories in Add/Edit item and dashboard filters;
 - per-user Discord item-added notifications.
 

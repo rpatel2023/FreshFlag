@@ -136,6 +136,7 @@ The old deployment/build/physical-acceptance gate is complete. Do not send futur
 
 - Barcode/Open Food Facts lookup now requests English responses and prefers English product-name fields before localized fallback fields, addressing scanned items appearing in French.
 - Manually entered barcode products are now saved in a household product cache so future scans can prefill the saved name/category instead of repeatedly showing Product not found.
+- Existing inventory items with barcodes now backfill the household product cache once per household when an inventory writer loads the household.
 - Add/Edit item now lets users create a persistent custom household category directly from the category picker.
 - Dashboard category filters now include saved household categories plus categories found on actual inventory items.
 - Discord settings now include a separate per-user opt-in for item-added notifications.

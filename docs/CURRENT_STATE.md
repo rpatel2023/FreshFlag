@@ -72,6 +72,7 @@ The repository now includes a post-validation source batch that still needs depl
 
 - barcode/Open Food Facts lookup now requests English and prefers English product-name fields before falling back to generic localized fields;
 - manually entered barcode products are persisted in a household product cache so future scans of the same barcode can prefill the saved name/category before falling back to Open Food Facts;
+- existing inventory items with barcodes are backfilled into the household product cache once per household when an inventory writer loads the household;
 - Add/Edit item can create a custom household category from the category picker;
 - custom categories are persisted under the household and remain available even before/after matching inventory items exist;
 - dashboard category filters include saved household categories plus categories found on actual inventory items;

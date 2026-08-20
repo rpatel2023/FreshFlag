@@ -21,6 +21,7 @@ class GroceryViewModel extends ChangeNotifier {
   bool _isUploading = false;
   String? _error;
   String? _householdId;
+  final Set<String> _backfilledProductCacheHouseholds = <String>{};
   StreamSubscription<List<GroceryItem>>? _inventorySubscription;
   StreamSubscription<List<String>>? _categorySubscription;
 
@@ -68,6 +69,7 @@ class GroceryViewModel extends ChangeNotifier {
       (items) {
         _items = items;
         _sortItems();
+        unawaited(_backfillProductCache(items));
         unawaited(LocalExpiryNotificationService.instance.sync(_items));
         _error = null;
         _isLoading = false;
@@ -226,6 +228,7 @@ class GroceryViewModel extends ChangeNotifier {
     _categorySubscription = null;
     _householdId = null;
     _firestore.setHousehold(null);
+    _backfilledProductCacheHouseholds.clear();
     _items = [];
     _customCategories = [];
     _isLoading = false;
@@ -285,6 +288,33 @@ class GroceryViewModel extends ChangeNotifier {
       );
     } catch (e) {
       _setError('Saved item, but could not remember barcode product: $e');
+    }
+  }
+
+  Future<void> _backfillProductCache(List<GroceryItem> items) async {
+    final householdId = _householdId;
+    final uid = _auth.currentUserId;
+    if (householdId == null || uid == null) return;
+    if (_backfilledProductCacheHouseholds.contains(householdId)) return;
+    _backfilledProductCacheHouseholds.add(householdId);
+
+    final seenBarcodes = <String>{};
+    for (final item in items) {
+      final barcode = item.barcode?.trim();
+      if (barcode == null || barcode.isEmpty || !seenBarcodes.add(barcode)) {
+        continue;
+      }
+      try {
+        await _firestore.saveCachedProduct(
+          barcode: barcode,
+          name: item.name,
+          category: item.category,
+          updatedByUid: uid,
+        );
+      } catch (_) {
+        // Guests and stale memberships may not be allowed to write cache entries.
+        // The cache is an optimization, so inventory loading should stay quiet.
+      }
     }
   }
 
