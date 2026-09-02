@@ -1,6 +1,7 @@
 {
   "name": "freshflag-functions",
   "private": true,
+  "type": "module",
   "main": "lib/entry.js",
   "engines": {
     "node": "22"
