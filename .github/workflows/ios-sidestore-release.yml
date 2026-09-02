@@ -106,7 +106,7 @@ jobs:
           SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")"
           BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
           FIREBASE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' ios/Runner/GoogleService-Info.plist)"
-          FCM_AUTO_INIT="$(/usr/libexec/PlistBuddy -c 'Print :FirebaseMessagingAutoInitEnabled' "$APP/Info.plist)"
+          FCM_AUTO_INIT="$(/usr/libexec/PlistBuddy -c 'Print :FirebaseMessagingAutoInitEnabled' "$APP/Info.plist")"
 
           test "$BUNDLE_ID" = "com.rpatel2023.freshflag"
           test "$SHORT_VERSION" = "$VERSION"
