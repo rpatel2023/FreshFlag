@@ -6,6 +6,24 @@ This file is the current project handoff and progress log. Detailed historical c
 
 Fresh Flag is in active real-device household use with the current Firebase backend/rules deployed. The permanent SideStore distribution path is established and the first permanent release has been published.
 
+### Web Push companion — feature branch
+
+`feature/web-push-companion` adds a deliberately thin Home Screen web app for server-originated expiry reminders without adding a second Fresh Flag product surface.
+
+- Existing Firestore inventory and household reminder rules remain authoritative.
+- The PWA only authenticates an existing user, registers/removes its Web Push subscription, sends a test notification, and displays reminder notifications.
+- Standards-based Web Push uses project VAPID keys stored as Firebase Functions secrets.
+- A separate scheduled `processWebPushExpiryReminders` worker evaluates the existing reminder rules every five minutes.
+- Web Push uses its own deterministic delivery IDs so it does not suppress Discord, native FCM/APNs, or SideStore local-notification channels.
+- Expired Web Push endpoints are cleaned up after 404/410 responses.
+- Firebase Hosting serves only the small notification companion under `web-push/`.
+- Backend CI validates Functions tests/build plus the PWA JavaScript and manifest.
+- Add/Edit item expiry shortcuts now also include **+3 months, +6 months, +12 months, +18 months** using calendar-month arithmetic with end-of-month clamping.
+
+This branch is not production-deployed yet. It still needs PR/CI completion, VAPID secret setup, Functions/Hosting deployment, and physical iPhone Home Screen/Web Push validation.
+
+See `docs/WEB_PUSH_COMPANION.md` and D-013 in `docs/DECISIONS.md`.
+
 ### Distribution milestones
 
 - Permanent SideStore release **Fresh Flag 0.1.0 (5)** published successfully.
@@ -33,10 +51,6 @@ Production testing confirmed the normal Firebase password-reset email/link flow 
 Household Owner/Admin roles do **not** gain the ability to change another user's Firebase Authentication password.
 
 See `docs/PASSWORD_RECOVERY.md` for the exact recovery procedure and security boundary.
-
-### Current next step
-
-Publish the PR #20 password-recovery improvements as the next SideStore release with a version/build higher than `0.1.0 (5)`, then verify that SideStore detects and installs it as an update over build 5 while preserving app data and expected auth state.
 
 ## Historical implementation state — 2026-08-20
 
