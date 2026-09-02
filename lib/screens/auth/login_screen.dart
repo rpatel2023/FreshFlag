@@ -200,8 +200,8 @@ class _LoginScreenState extends State<LoginScreen> {
       SnackBar(
         content: Text(
           sent
-              ? 'Password reset email sent.'
-              : (auth.error ?? 'Could not send password reset email.'),
+              ? 'If an account exists for that email, a reset link will be sent. Check your inbox and spam folder.'
+              : (auth.error ?? 'Could not request a password reset.'),
         ),
       ),
     );
