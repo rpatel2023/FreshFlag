@@ -102,23 +102,33 @@ One-tap SideStore source link:
 sidestore://source?url=https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
 ```
 
-The remaining distribution validation is on-device: add the permanent source in SideStore, confirm Fresh Flag is discoverable/installable from the source, and later prove update detection with a subsequent build.
+On-device source migration has now also passed:
+
+- the permanent **Fresh Flag** source was added successfully in SideStore;
+- SideStore showed one Fresh Flag app in that source;
+- the existing FreshFlag install had originally been installed from the IPA/iLoader path and was not listed under **My Apps**;
+- installing Fresh Flag from the new source over the existing app succeeded without uninstalling first;
+- Fresh Flag now appears under **My Apps** as a SideStore-managed app with a fresh 7-day signing window.
+
+This proves the source-based install/migration path. The only remaining distribution proof is a future update-detection/update-install test using a later release with a higher build number.
 
 ## Current known gaps / bugs
 
 - No current blocking product gap is documented after existing real-device testing, backend deployment, and several days of normal use of the current build.
 - The first permanent SideStore release is published successfully.
-- Source-based on-device install/update behavior still needs validation.
+- Source add/install/migration into SideStore management is validated on-device.
+- A future source-based update from build 5 to a higher build still needs validation.
 - When new bugs are found in normal use, record them here before starting implementation.
 
 ## Current priority
 
 Unless the user names a higher-priority bug or feature:
 
-1. add the permanent FreshFlag source to SideStore on an existing test phone;
-2. confirm Fresh Flag appears and can be installed from that source;
-3. later publish a higher build number and verify SideStore surfaces the update;
-4. share the source with friends/family once that path is proven.
+1. preserve the working permanent Fresh Flag SideStore source;
+2. on the next meaningful app release, use a higher build number and verify SideStore surfaces the update;
+3. once that update path is proven, treat the SideStore distribution flow as fully validated for friends/family.
+
+Do **not** create a throwaway release solely to satisfy the update test unless the user explicitly wants to; the next real app change can provide that proof.
 
 Do **not** repeat Firebase deployment or another generic current-build install/validation cycle unless there is a newer code change or evidence of a regression.
 
