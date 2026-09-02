@@ -1,38 +1,36 @@
 # FreshFlag — Next Work for Codex
 
-> Current objective: publish PR #20 password-recovery improvements as the next SideStore release and validate the source-based update path.
+> Current objective: verify the updated build's account-recovery behavior and keep SideStore distribution operational.
 
 ## Current phase
 
-FreshFlag is beyond the earlier PR #15–#18 acceptance phase, backend deployment gate, and first permanent SideStore source-install/migration test.
+FreshFlag has completed the permanent SideStore distribution validation path:
 
-Current known-good state:
+- production backend/rules are deployed;
+- permanent SideStore source exists;
+- existing IPA/iLoader install was migrated into SideStore management;
+- release **0.1.0 build 5** installed successfully from the source;
+- release **0.1.1 build 6** was detected as an update over build 5;
+- the source-based update installation completed successfully.
 
-- production Cloud Functions/Firestore rules for the current source batch are already deployed;
-- the app has been in normal household use on real devices;
-- permanent SideStore release **0.1.0 build 5** is published;
-- the permanent Fresh Flag source has been added successfully on-device;
-- the previous IPA/iLoader-installed FreshFlag was migrated into SideStore management without uninstalling;
-- PR #20 password-recovery hardening is merged to `main` as `df32acbfe4e699a27845dff25b40587dc697ffa9`.
-
-Do not repeat older deployment, generic install, or source-add steps unless a regression is reported.
+Do not repeat older source-add/migration/update-proof work unless a regression is reported.
 
 ## Password recovery state
 
-Preserve the following design:
+PR #20 is merged and shipped in **0.1.1 (6)**.
+
+Preserve these boundaries:
 
 - Login → **Forgot password?** uses Firebase Authentication reset email.
-- Production testing confirmed Firebase reset emails are sent; they were initially hard to locate, not actually absent.
-- The app must not claim guaranteed inbox delivery merely because Firebase accepted the request.
-- Signed-in users can use **Settings → Change password**, with current-password reauthentication.
+- Production Gmail delivery was not observed during testing even when Firebase Console also triggered a reset; treat this as unresolved email delivery, not a client-wiring failure.
+- Fresh Flag's success text must not guarantee inbox delivery.
+- Signed-in users have **Settings → Change password**, using current-password reauthentication.
 - Emergency project-operator reset remains local/Admin-SDK-only.
 - Household Owner/Admin roles must never gain authentication-password reset authority over other users.
 
 See `docs/PASSWORD_RECOVERY.md` for the recovery procedure.
 
 ## SideStore distribution state
-
-PR #19 added the publisher-side release path.
 
 Permanent source URL:
 
@@ -43,23 +41,40 @@ https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
 Current published release:
 
 ```text
-Fresh Flag 0.1.0 (5)
+Fresh Flag 0.1.1 (6)
 ```
 
-Source installation/migration is already validated. The remaining proof is **update detection and update installation**.
+Distribution is validated end-to-end: publication, source add, migration from manual IPA, update detection, and update installation.
+
+### SideStore 0.6.3 workaround
+
+A known SideStore 0.6.3 UI bug can show:
+
+```text
+Operation Failed
+An unknown error occurred. (SideStore/AppManager.swift line 723)
+```
+
+when the Update button is tapped twice because the first tap starts work without immediately refreshing the button state.
+
+Validated workaround:
+
+1. tap Update exactly once;
+2. immediately switch to **News** or another tab;
+3. wait about 20–30 seconds;
+4. return to **My Apps**.
+
+Do not diagnose this specific behavior as a FreshFlag release failure.
 
 ## Next runtime sequence
 
 Unless the user names another priority:
 
-1. publish the merged password-recovery change as the next SideStore release, using a version/build greater than `0.1.0 (5)`;
-2. refresh/check the Fresh Flag source on an iPhone currently running build 5;
-3. confirm SideStore surfaces the new release as an **Update** rather than requiring another manual IPA/source migration;
-4. install the update without deleting Fresh Flag;
-5. verify household/app data and expected auth state survive the update;
-6. test **Settings → Change password** on-device;
-7. optionally re-test **Forgot password?** and confirm the Firebase reset email/link path still works;
-8. once the update path passes, treat the SideStore distribution mechanism as fully validated for friends/family.
+1. open Fresh Flag 0.1.1 (6) and verify household/inventory/session state survived the update;
+2. test **Settings → Change password** on-device;
+3. optionally re-test login with the new password;
+4. investigate Firebase Auth email delivery separately if forgotten-password recovery by email remains unreliable;
+5. prepare concise friend/family onboarding instructions for SideStore when needed.
 
 ## Authorization model
 
