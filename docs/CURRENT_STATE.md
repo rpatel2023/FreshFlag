@@ -21,33 +21,26 @@ scan / add item
 
 ### Real-device use
 
-- The app has moved through the real-device testing phase.
+- FreshFlag has moved through its earlier structured real-device acceptance-testing phase.
 - A second household user has installed/joined successfully.
 - The second user can join the same household and see the shared inventory.
 - Shared household inventory synchronization works across the tested two-iPhone flows.
-- The current phone build includes the PR #15 through PR #18 feature set, including consumed-item navigation, household roles/member management, branding normalization, item editing, and personal favourites.
-- The old post-IPA checklist is complete; do not treat deployment/build/acceptance as still pending unless a newer regression says otherwise.
+- The current SideStore build is installed and has been in normal household use for several days as of 2026-09-02.
+- The current phone build includes the PR #15 through PR #18 feature set plus the newer post-validation source batch described below.
+- Do not send the user back through old build/install or PR #15–#18 acceptance gates unless a new regression is reported.
 
 ### Item lifecycle
 
 - Marking an item **Consumed** successfully writes the state change.
 - After consumption, the item exposes **Restore to inventory**.
-- Returning from the item caused it to disappear from the active inventory list, as intended.
-- A UI defect was found because there was no navigation path back to consumed items.
-- That defect was fixed in **PR #15**.
-- PR #15 passed CI and was merged to `main` at commit:
-
-```text
-55672e641a1365a4e4604c11b66512b5
-```
-
-Do not reintroduce a design where consumed items are unreachable.
+- Consumed items remain reachable through the explicit Active / Consumed inventory views added in PR #15.
+- Cross-device consume/restore behavior has been validated on real devices.
 
 ### Reminders
 
-- Reminder behavior has been manually tested after the consumed-item work.
+- Reminder behavior has been manually tested.
+- SideStore builds support on-device local expiry reminders from synced household inventory.
 - Treat reminders as an existing implemented feature, not a greenfield phase.
-- Before changing reminder architecture, inspect the code and existing tests/build history rather than assuming the original Phase 5/6 work is still undone.
 
 ### Household roles and member management
 
@@ -68,7 +61,7 @@ Do not reintroduce a design where consumed items are unreachable.
 
 ## Newer source batch and deployment state
 
-The repository includes a post-validation source batch with:
+The current installed build includes the post-validation source batch with:
 
 - English-preferred Open Food Facts product-name lookup;
 - household barcode product cache and one-time backfill from existing barcode inventory;
@@ -78,9 +71,11 @@ The repository includes a post-validation source batch with:
 - an in-app **Activity** tab;
 - SideStore-local expiry reminders from synced inventory, exposed as **Expiry reminders on this iPhone**.
 
-**Backend deployment is complete.** The updated Cloud Functions and Firestore rules for this source batch have already been deployed. Do not list backend/rules deployment as pending work.
+**Backend deployment is complete.** The updated Cloud Functions and Firestore rules for this source batch have already been deployed.
 
-The remaining gate for this source batch is a fresh SideStore build/install and real-device validation of the newer behavior.
+**Build/install is also complete.** The resulting SideStore build has been installed and used in normal household operation for several days. This is enough to close the old generic "build/install current IPA" gate. Do not repeat it merely because older notes say the batch is awaiting installation.
+
+Do not overstate feature-specific validation: normal use confirms the current build is viable, while any individual feature that has not been explicitly exercised should still be tested when that feature becomes relevant.
 
 ## SideStore distribution
 
@@ -92,12 +87,11 @@ PR #19 added the publisher-side distribution path:
 - the permanent source URL is `https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json`;
 - friends add the source once and SideStore performs per-user signing on their own devices.
 
-The first permanent SideStore release has not yet been published/validated end to end.
+The **remaining distribution milestone** is the first permanent SideStore release/source run and end-to-end validation of installing/updating through that source.
 
 ## Current known gaps / bugs
 
-- No current blocking product gap is documented after the existing real-device testing and backend deployment.
-- The newest source batch still needs fresh-build/device validation.
+- No current blocking product gap is documented after the existing real-device testing, backend deployment, and several days of normal use of the current build.
 - The new permanent SideStore release/source pipeline still needs its first end-to-end release validation.
 - When new bugs are found in normal use, record them here before starting implementation.
 
@@ -105,20 +99,19 @@ The first permanent SideStore release has not yet been published/validated end t
 
 Unless the user names a higher-priority bug or feature:
 
-1. build the current SideStore release from `main`;
-2. install it on the existing test iPhone(s);
-3. validate the newer source batch on-device;
-4. publish the first permanent SideStore release;
-5. add the permanent source in SideStore and validate install/update behavior before sharing it with friends.
+1. publish the first permanent SideStore release from the current known-good `main` build;
+2. add the permanent FreshFlag source to SideStore on an existing test phone;
+3. validate install/update behavior through the source;
+4. share the source with friends/family once that path is proven.
 
-Do **not** repeat Firebase Functions/Firestore rules deployment unless there is a newer backend change or deployment evidence indicates a regression.
+Do **not** repeat Firebase deployment or another generic current-build install/validation cycle unless there is a newer code change or evidence of a regression.
 
 ## Evidence hierarchy
 
 When documentation disagrees, use this order:
 
-1. current repository behavior + tests + Firestore rules;
-2. explicit newer runtime/deployment confirmation from the user;
+1. explicit newer runtime/deployment confirmation from the user;
+2. current repository behavior + tests + Firestore rules;
 3. this `CURRENT_STATE.md` file;
 4. `DECISIONS.md`;
 5. original `PROJECT_CONTEXT_ORIGINAL.md` phase plan.
