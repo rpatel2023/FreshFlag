@@ -79,29 +79,45 @@ Do not overstate feature-specific validation: normal use confirms the current bu
 
 ## SideStore distribution
 
-PR #19 added the publisher-side distribution path:
+PR #19 added the publisher-side distribution path.
 
-- the existing ad-hoc unsigned SideStore IPA workflow remains available;
-- `Publish SideStore Release` can build the zero-fee profile and publish permanent GitHub Release assets;
-- each release contains `FreshFlag.ipa` and `source.json`;
-- the permanent source URL is `https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json`;
-- friends add the source once and SideStore performs per-user signing on their own devices.
+The first permanent SideStore release was successfully published on 2026-09-02:
 
-The **remaining distribution milestone** is the first permanent SideStore release/source run and end-to-end validation of installing/updating through that source.
+- release: **Fresh Flag 0.1.0 (5)**;
+- tag: `sidestore-v0.1.0-b5`;
+- target commit: `b161bf76b2f5b267436fe0c4c388c15cb6003f21`;
+- release assets: `FreshFlag.ipa` and `source.json`;
+- workflow run `33643532182`: **success**;
+- the workflow's post-publish verification step successfully validated both the source JSON and IPA URL.
+
+Permanent source URL:
+
+```text
+https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
+```
+
+One-tap SideStore source link:
+
+```text
+sidestore://source?url=https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
+```
+
+The remaining distribution validation is on-device: add the permanent source in SideStore, confirm Fresh Flag is discoverable/installable from the source, and later prove update detection with a subsequent build.
 
 ## Current known gaps / bugs
 
-- No current blocking product gap is documented after the existing real-device testing, backend deployment, and several days of normal use of the current build.
-- The new permanent SideStore release/source pipeline still needs its first end-to-end release validation.
+- No current blocking product gap is documented after existing real-device testing, backend deployment, and several days of normal use of the current build.
+- The first permanent SideStore release is published successfully.
+- Source-based on-device install/update behavior still needs validation.
 - When new bugs are found in normal use, record them here before starting implementation.
 
 ## Current priority
 
 Unless the user names a higher-priority bug or feature:
 
-1. publish the first permanent SideStore release from the current known-good `main` build;
-2. add the permanent FreshFlag source to SideStore on an existing test phone;
-3. validate install/update behavior through the source;
+1. add the permanent FreshFlag source to SideStore on an existing test phone;
+2. confirm Fresh Flag appears and can be installed from that source;
+3. later publish a higher build number and verify SideStore surfaces the update;
 4. share the source with friends/family once that path is proven.
 
 Do **not** repeat Firebase deployment or another generic current-build install/validation cycle unless there is a newer code change or evidence of a regression.
