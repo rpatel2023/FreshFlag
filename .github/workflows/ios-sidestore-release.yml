@@ -1,0 +1,244 @@
+name: Publish SideStore Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: App version, for example 0.1.0
+        required: true
+        type: string
+      build_number:
+        description: Monotonically increasing iOS build number
+        required: true
+        type: string
+      release_notes:
+        description: Short user-facing release notes
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sidestore-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: macos-14
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release inputs
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]
+
+      - name: Select Xcode 15.4
+        run: |
+          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Verify lockfile is reproducible
+        run: git diff --exit-code -- pubspec.lock
+
+      - name: Test SideStore profile
+        run: flutter test --no-pub --dart-define=FRESHFLAG_SIDESTORE=true
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Verify SideStore capability budget
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if find ios/Runner -maxdepth 1 -name '*.entitlements' -print -quit | grep -q .; then
+            echo 'Unexpected iOS Runner entitlements file in SideStore build.' >&2
+            exit 1
+          fi
+          if grep -Eq 'CODE_SIGN_ENTITLEMENTS|SystemCapabilities' ios/Runner.xcodeproj/project.pbxproj; then
+            echo 'Unexpected Xcode signing capability in SideStore build.' >&2
+            exit 1
+          fi
+
+          test "$(/usr/libexec/PlistBuddy -c 'Print :FirebaseMessagingAutoInitEnabled' ios/Runner/Info.plist)" = "false"
+
+      - name: Build unsigned iOS app
+        env:
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: >-
+          flutter build ios --release --no-codesign --no-pub
+          --build-name "$VERSION"
+          --build-number "$BUILD_NUMBER"
+          --dart-define=FRESHFLAG_SIDESTORE=true
+
+      - name: Assemble SideStore IPA
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -euo pipefail
+
+          APP="build/ios/iphoneos/Runner.app"
+          OUT="build/sidestore-release"
+          BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")"
+          BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
+          FIREBASE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' ios/Runner/GoogleService-Info.plist)"
+          FCM_AUTO_INIT="$(/usr/libexec/PlistBuddy -c 'Print :FirebaseMessagingAutoInitEnabled' "$APP/Info.plist)"
+
+          test "$BUNDLE_ID" = "com.rpatel2023.freshflag"
+          test "$SHORT_VERSION" = "$VERSION"
+          test "$BUNDLE_VERSION" = "$BUILD_NUMBER"
+          test "$FIREBASE_BUNDLE_ID" = "$BUNDLE_ID"
+          test "$FCM_AUTO_INIT" = "false"
+          test -f ios/Runner/GoogleService-Info.plist
+
+          if find "$APP" -type d -name '*.appex' -print -quit | grep -q .; then
+            echo 'Unexpected app extension in SideStore IPA.' >&2
+            exit 1
+          fi
+
+          cp ios/Runner/GoogleService-Info.plist "$APP/GoogleService-Info.plist"
+
+          rm -rf "$OUT"
+          mkdir -p "$OUT/Payload"
+          cp -R "$APP" "$OUT/Payload/FreshFlag.app"
+
+          (
+            cd "$OUT"
+            zip -qry FreshFlag.ipa Payload
+          )
+
+          test -s "$OUT/FreshFlag.ipa"
+          unzip -l "$OUT/FreshFlag.ipa" | grep -q 'Payload/FreshFlag.app/Info.plist'
+          unzip -l "$OUT/FreshFlag.ipa" | grep -q 'Payload/FreshFlag.app/GoogleService-Info.plist'
+
+      - name: Generate SideStore source
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          OUT="build/sidestore-release"
+          TAG="sidestore-v${VERSION}-b${BUILD_NUMBER}"
+          DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          SIZE="$(stat -f%z "$OUT/FreshFlag.ipa")"
+          SOURCE_URL="https://github.com/${REPOSITORY}/releases/latest/download/source.json"
+          DOWNLOAD_URL="https://github.com/${REPOSITORY}/releases/download/${TAG}/FreshFlag.ipa"
+          ICON_URL="https://raw.githubusercontent.com/${REPOSITORY}/main/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png"
+
+          jq -n \
+            --arg sourceURL "$SOURCE_URL" \
+            --arg version "$VERSION" \
+            --arg buildVersion "$BUILD_NUMBER" \
+            --arg date "$DATE" \
+            --arg notes "$RELEASE_NOTES" \
+            --arg downloadURL "$DOWNLOAD_URL" \
+            --arg iconURL "$ICON_URL" \
+            --argjson size "$SIZE" \
+            '{
+              name: "Fresh Flag",
+              identifier: "com.rpatel2023.freshflag.source",
+              sourceURL: $sourceURL,
+              subtitle: "Private Fresh Flag builds for SideStore.",
+              apps: [
+                {
+                  name: "Fresh Flag",
+                  bundleIdentifier: "com.rpatel2023.freshflag",
+                  developerName: "Fresh Flag",
+                  subtitle: "Shared food-expiry tracking for households.",
+                  localizedDescription: "Track household food expiry dates, share inventory, and get reminders before food expires.",
+                  iconURL: $iconURL,
+                  category: "utilities",
+                  versions: [
+                    {
+                      version: $version,
+                      buildVersion: $buildVersion,
+                      date: $date,
+                      localizedDescription: $notes,
+                      downloadURL: $downloadURL,
+                      size: $size
+                    }
+                  ]
+                }
+              ]
+            }' > "$OUT/source.json"
+
+          jq -e '.apps | length == 1' "$OUT/source.json" >/dev/null
+          jq -e '.apps[0].bundleIdentifier == "com.rpatel2023.freshflag"' "$OUT/source.json" >/dev/null
+          jq -e '.apps[0].versions[0].version == $version' --arg version "$VERSION" "$OUT/source.json" >/dev/null
+          jq -e '.apps[0].versions[0].buildVersion == $build' --arg build "$BUILD_NUMBER" "$OUT/source.json" >/dev/null
+          jq -e '.apps[0] | has("marketplaceID") | not' "$OUT/source.json" >/dev/null
+
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -euo pipefail
+
+          gh release create "$RELEASE_TAG" \
+            build/sidestore-release/FreshFlag.ipa \
+            build/sidestore-release/source.json \
+            --title "Fresh Flag ${VERSION} (${BUILD_NUMBER})" \
+            --notes "$RELEASE_NOTES" \
+            --target "$GITHUB_SHA"
+
+      - name: Verify published source and IPA
+        shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -euo pipefail
+
+          SOURCE_URL="https://github.com/${REPOSITORY}/releases/latest/download/source.json"
+          IPA_URL="https://github.com/${REPOSITORY}/releases/download/${RELEASE_TAG}/FreshFlag.ipa"
+
+          curl --fail --location --retry 5 --retry-delay 2 "$SOURCE_URL" -o /tmp/source.json
+          jq -e '.apps[0].bundleIdentifier == "com.rpatel2023.freshflag"' /tmp/source.json >/dev/null
+          jq -e '.apps[0].versions[0].version == $version' --arg version "$VERSION" /tmp/source.json >/dev/null
+          jq -e '.apps[0].versions[0].buildVersion == $build' --arg build "$BUILD_NUMBER" /tmp/source.json >/dev/null
+          curl --fail --location --head --retry 5 --retry-delay 2 "$IPA_URL" >/dev/null
+
+      - name: Upload release bundle as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreshFlag-SideStore-Release
+          path: |
+            build/sidestore-release/FreshFlag.ipa
+            build/sidestore-release/source.json
+          if-no-files-found: error
+          retention-days: 7
