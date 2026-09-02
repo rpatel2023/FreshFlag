@@ -75,7 +75,20 @@ The current installed build includes the post-validation source batch with:
 
 **Build/install is also complete.** The resulting SideStore build has been installed and used in normal household operation for several days. This is enough to close the old generic "build/install current IPA" gate. Do not repeat it merely because older notes say the batch is awaiting installation.
 
-Do not overstate feature-specific validation: normal use confirms the current build is viable, while any individual feature that has not been explicitly exercised should still be tested when that feature becomes relevant.
+## Password recovery
+
+PR #20 (`df32acbfe4e699a27845dff25b40587dc697ffa9`) hardened authentication recovery and is merged to `main`.
+
+Current behavior:
+
+- **Forgot password?** on the login screen uses Firebase Authentication's password-reset email flow.
+- Production testing confirmed that reset emails are sent; during testing they were initially hard to locate, which made delivery appear broken.
+- The login confirmation deliberately says that a reset link *will be sent if an account exists* rather than claiming inbox delivery.
+- Signed-in users can use **Settings → Change password**; Fresh Flag reauthenticates with the current password before setting the new one.
+- A local-only Firebase Admin SDK operator tool exists for emergency recovery when normal reset-email recovery is genuinely unavailable.
+- Household Owner/Admin roles do **not** receive the ability to change another user's authentication password.
+
+See `docs/PASSWORD_RECOVERY.md` for the exact recovery/operator procedure.
 
 ## SideStore distribution
 
@@ -102,7 +115,7 @@ One-tap SideStore source link:
 sidestore://source?url=https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
 ```
 
-On-device source migration has now also passed:
+On-device source migration has also passed:
 
 - the permanent **Fresh Flag** source was added successfully in SideStore;
 - SideStore showed one Fresh Flag app in that source;
@@ -110,27 +123,27 @@ On-device source migration has now also passed:
 - installing Fresh Flag from the new source over the existing app succeeded without uninstalling first;
 - Fresh Flag now appears under **My Apps** as a SideStore-managed app with a fresh 7-day signing window.
 
-This proves the source-based install/migration path. The only remaining distribution proof is a future update-detection/update-install test using a later release with a higher build number.
+This proves the source-based install/migration path.
 
 ## Current known gaps / bugs
 
 - No current blocking product gap is documented after existing real-device testing, backend deployment, and several days of normal use of the current build.
+- Password-reset email delivery is confirmed working; the prior issue was visibility/delay, not broken Firebase wiring.
 - The first permanent SideStore release is published successfully.
 - Source add/install/migration into SideStore management is validated on-device.
-- A future source-based update from build 5 to a higher build still needs validation.
-- When new bugs are found in normal use, record them here before starting implementation.
+- A source-based update from build 5 to a higher build still needs validation.
 
 ## Current priority
 
 Unless the user names a higher-priority bug or feature:
 
-1. preserve the working permanent Fresh Flag SideStore source;
-2. on the next meaningful app release, use a higher build number and verify SideStore surfaces the update;
-3. once that update path is proven, treat the SideStore distribution flow as fully validated for friends/family.
+1. publish the merged password-recovery improvements as the next SideStore release using a higher build number;
+2. verify SideStore surfaces that release as an update over installed build 5;
+3. install the update and verify app/data/session behavior survives;
+4. test **Settings → Change password** on-device;
+5. once that update path is proven, treat the SideStore distribution flow as fully validated for friends/family.
 
-Do **not** create a throwaway release solely to satisfy the update test unless the user explicitly wants to; the next real app change can provide that proof.
-
-Do **not** repeat Firebase deployment or another generic current-build install/validation cycle unless there is a newer code change or evidence of a regression.
+Do **not** repeat Firebase deployment or another generic current-build install/validation cycle unless there is a newer code/backend change or evidence of a regression.
 
 ## Evidence hierarchy
 
