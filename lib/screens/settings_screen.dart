@@ -13,6 +13,7 @@ import '../theme/theme_provider.dart';
 import '../utils/app_theme.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 import '../viewmodels/household_viewmodel.dart';
+import 'auth/change_password_screen.dart';
 import 'discord_reminders_screen.dart';
 import 'household_invite_screen.dart';
 import 'household_members_screen.dart';
@@ -48,14 +49,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(AppTheme.spacingL),
         children: [
           Card(
-            child: ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-              title: Text(
-                user?.displayName?.trim().isNotEmpty == true
-                    ? user!.displayName!
-                    : '${AppBrand.name} user',
-              ),
-              subtitle: Text(user?.email ?? 'Signed in'),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                  title: Text(
+                    user?.displayName?.trim().isNotEmpty == true
+                        ? user!.displayName!
+                        : '${AppBrand.name} user',
+                  ),
+                  subtitle: Text(user?.email ?? 'Signed in'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.password_outlined),
+                  title: const Text('Change password'),
+                  subtitle: const Text('Update your Fresh Flag sign-in password'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ChangePasswordScreen(),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: AppTheme.spacingM),

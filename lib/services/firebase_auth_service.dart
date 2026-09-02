@@ -114,6 +114,30 @@ class FirebaseAuthService {
     }
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      final email = user?.email?.trim();
+      if (user == null || email == null || email.isEmpty) {
+        throw Exception('No email/password user is signed in.');
+      }
+
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw Exception('Password change failed: $e');
+    }
+  }
+
   Future<void> updateUserProfile({
     String? displayName,
     String? photoURL,
@@ -167,7 +191,7 @@ class FirebaseAuthService {
       case 'account-exists-with-different-credential':
         return 'An account already exists with the same email but different sign-in credentials.';
       case 'invalid-credential':
-        return 'The credential is malformed or has expired.';
+        return 'The current password is incorrect or the credential has expired.';
       case 'operation-not-allowed':
         return 'This sign-in method is not enabled.';
       case 'user-disabled':
