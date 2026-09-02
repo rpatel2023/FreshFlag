@@ -99,3 +99,13 @@ Household roles govern Fresh Flag household data, not Firebase Authentication ac
 - A trusted Fresh Flag project operator may perform emergency recovery with privileged Firebase Admin SDK credentials using the local-only repository tool.
 
 Production testing confirmed that Firebase password-reset emails are sent; during testing they were initially hard to locate, so absence from the visible inbox must not be treated as proof that the reset mechanism is broken.
+
+## D-013 — The Home Screen web app is notification-only
+
+The iOS Home Screen web app is a thin Web Push companion, not a second Fresh Flag client.
+
+It may authenticate an existing user, register/unregister the current browser's Web Push subscription, send a test notification, and display expiry reminder pushes. It must not duplicate inventory, barcode, household, activity, reminder-rule, expiry-calculation, or item-lifecycle logic from the Flutter application.
+
+The existing Firebase backend remains authoritative. Web Push is an additional reminder delivery channel and must use its own idempotent delivery identity so it does not suppress Discord, native FCM/APNs, or device-local reminder behavior.
+
+Deleting or disabling the web companion must leave the native Fresh Flag application fully functional.
