@@ -7,7 +7,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test lib/*.test.js"
+    "test": "npm run build && node --test lib/*.test.js",
+    "admin:reset-password": "node tools/reset-password.mjs"
   },
   "dependencies": {
     "firebase-admin": "14.2.0",
