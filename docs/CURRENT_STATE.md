@@ -21,87 +21,46 @@ scan / add item
 
 ### Real-device use
 
-- FreshFlag has moved through its earlier structured real-device acceptance-testing phase.
 - A second household user has installed/joined successfully.
-- The second user can join the same household and see the shared inventory.
 - Shared household inventory synchronization works across the tested two-iPhone flows.
-- The current SideStore build is installed and has been in normal household use for several days as of 2026-09-02.
-- The current phone build includes the PR #15 through PR #18 feature set plus the newer post-validation source batch described below.
-- Do not send the user back through old build/install or PR #15–#18 acceptance gates unless a new regression is reported.
-
-### Item lifecycle
-
-- Marking an item **Consumed** successfully writes the state change.
-- After consumption, the item exposes **Restore to inventory**.
-- Consumed items remain reachable through the explicit Active / Consumed inventory views added in PR #15.
-- Cross-device consume/restore behavior has been validated on real devices.
+- The current SideStore build is installed and has been in normal household use.
+- Core add/edit/consume/restore, reminders, roles, favourites, Activity, barcode lookup/cache, custom categories, and Discord integration have been physically validated.
 
 ### Reminders
 
 - Reminder behavior has been manually tested.
 - SideStore builds support on-device local expiry reminders from synced household inventory.
-- Treat reminders as an existing implemented feature, not a greenfield phase.
+- Discord expiry reminders and granular activity notifications are available per user.
+- Native FCM/APNs delivery remains available for standard/paid-distribution builds but is intentionally unavailable to the free SideStore build.
 
 ### Household roles and member management
 
-- Household member management is implemented in the current phone build.
-- The app has a discoverable **Members & access** path.
-- The owner can promote a trusted household member from Member to Admin without making them Owner.
-- The trusted member/Admin path for reminder-rule and invite management has been tested on device.
-- Guest/read-only behavior has been tested: guests can read household data/inventory/reminder rules but cannot perform privileged household or inventory writes.
-- Role behavior is enforced in Firestore rules and backend callable functions, not only in Flutter UI.
-
-### Favourites and inventory polish
-
-- Personal favourites are implemented and tested as per-user data, not household-owned data.
-- Favourites do not leak between household accounts.
-- Guest users can manage personal favourites, but **Add again** is disabled while household access is read-only.
-- Existing inventory items can be edited from Item details.
-- Edit propagation, expiry shortcuts, inventory search/sort, tappable reminder rows, consumed Undo, and relaunch persistence have been tested on device.
-
-## Newer source batch and deployment state
-
-The current installed build includes the post-validation source batch with:
-
-- English-preferred Open Food Facts product-name lookup;
-- household barcode product cache and one-time backfill from existing barcode inventory;
-- persistent household custom categories and dashboard category filters;
-- granular per-user Discord activity opt-ins;
-- backend item create/update/delete activity fanout and household activity feed;
-- an in-app **Activity** tab;
-- SideStore-local expiry reminders from synced inventory, exposed as **Expiry reminders on this iPhone**.
-
-**Backend deployment is complete.** The updated Cloud Functions and Firestore rules for this source batch have already been deployed.
-
-**Build/install is also complete.** The resulting SideStore build has been installed and used in normal household operation for several days. This is enough to close the old generic "build/install current IPA" gate. Do not repeat it merely because older notes say the batch is awaiting installation.
+- Owner, Admin, Member, and Guest roles are implemented and enforced in backend/Firestore authorization.
+- Guest is genuinely read-only for household inventory/reminder-rule data.
+- Owner/Admin household authorization does not grant Firebase Authentication password-administration rights.
 
 ## Password recovery
 
-PR #20 (`df32acbfe4e699a27845dff25b40587dc697ffa9`) hardened authentication recovery and is merged to `main`.
+PR #20 (`df32acbfe4e699a27845dff25b40587dc697ffa9`) is merged to `main`.
 
 Current behavior:
 
-- **Forgot password?** on the login screen uses Firebase Authentication's password-reset email flow.
-- Production testing confirmed that reset emails are sent; during testing they were initially hard to locate, which made delivery appear broken.
-- The login confirmation deliberately says that a reset link *will be sent if an account exists* rather than claiming inbox delivery.
-- Signed-in users can use **Settings → Change password**; Fresh Flag reauthenticates with the current password before setting the new one.
-- A local-only Firebase Admin SDK operator tool exists for emergency recovery when normal reset-email recovery is genuinely unavailable.
-- Household Owner/Admin roles do **not** receive the ability to change another user's authentication password.
+- **Forgot password?** uses Firebase Authentication reset email.
+- Signed-in users can use **Settings → Change password** with current-password reauthentication.
+- A local-only Firebase Admin SDK operator tool exists for emergency recovery.
+- Household Owner/Admin roles cannot change another user's authentication password.
 
-See `docs/PASSWORD_RECOVERY.md` for the exact recovery/operator procedure.
+See `docs/PASSWORD_RECOVERY.md`.
 
 ## SideStore distribution
 
-PR #19 added the publisher-side distribution path.
+The permanent SideStore source path is established.
 
-The first permanent SideStore release was successfully published on 2026-09-02:
+Current published release:
 
-- release: **Fresh Flag 0.1.0 (5)**;
-- tag: `sidestore-v0.1.0-b5`;
-- target commit: `b161bf76b2f5b267436fe0c4c388c15cb6003f21`;
-- release assets: `FreshFlag.ipa` and `source.json`;
-- workflow run `33643532182`: **success**;
-- the workflow's post-publish verification step successfully validated both the source JSON and IPA URL.
+```text
+Fresh Flag 0.1.0 (5)
+```
 
 Permanent source URL:
 
@@ -109,41 +68,45 @@ Permanent source URL:
 https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
 ```
 
-One-tap SideStore source link:
+The permanent source was added on-device and an existing IPA/iLoader install was migrated into SideStore management without uninstalling. A source-based update from build 5 to a higher build still needs validation.
 
-```text
-sidestore://source?url=https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
-```
+## Web Push companion — in development
 
-On-device source migration has also passed:
+Branch `feature/web-push-companion` adds a deliberately thin Home Screen web app for server-originated expiry reminders without requiring the paid Apple Developer Program.
 
-- the permanent **Fresh Flag** source was added successfully in SideStore;
-- SideStore showed one Fresh Flag app in that source;
-- the existing FreshFlag install had originally been installed from the IPA/iLoader path and was not listed under **My Apps**;
-- installing Fresh Flag from the new source over the existing app succeeded without uninstalling first;
-- Fresh Flag now appears under **My Apps** as a SideStore-managed app with a fresh 7-day signing window.
+Architecture boundary:
 
-This proves the source-based install/migration path.
+- existing Firestore/reminder rules stay authoritative;
+- a separate scheduled backend worker evaluates the same household reminder rules and sends standards-based Web Push;
+- the PWA only signs in, registers/unregisters a browser PushSubscription, sends a test notification, and displays incoming reminder notifications;
+- the PWA does **not** duplicate inventory, household, barcode, activity, reminder-rule, expiry, or item-lifecycle logic;
+- Web Push uses its own deterministic delivery ID so a successful Web Push does not suppress Discord/FCM/local channels;
+- deleting the PWA leaves the native Flutter app functional.
 
-## Current known gaps / bugs
+The branch currently includes:
 
-- No current blocking product gap is documented after existing real-device testing, backend deployment, and several days of normal use of the current build.
-- Password-reset email delivery is confirmed working; the prior issue was visibility/delay, not broken Firebase wiring.
-- The first permanent SideStore release is published successfully.
-- Source add/install/migration into SideStore management is validated on-device.
-- A source-based update from build 5 to a higher build still needs validation.
+- `functions/src/web_push.ts` authenticated subscription management + Web Push delivery;
+- scheduled `processWebPushExpiryReminders` worker;
+- stale-endpoint cleanup on 404/410;
+- isolated Web Push unit tests;
+- static notification-only PWA under `web-push/`;
+- Firebase Hosting configuration;
+- CI syntax/manifest validation;
+- `docs/WEB_PUSH_COMPANION.md` deployment and maintenance instructions.
+
+This work is **not production-deployed yet**. It still needs PR/CI completion, VAPID secret creation, Functions/Hosting deployment, and physical iPhone Home Screen/Web Push validation.
 
 ## Current priority
 
-Unless the user names a higher-priority bug or feature:
+The user explicitly prioritized finishing the notification-only Web Push companion. Finish that work through a PR unless a genuine user decision is required. After merge/deployment, validate on a physical iPhone:
 
-1. publish the merged password-recovery improvements as the next SideStore release using a higher build number;
-2. verify SideStore surfaces that release as an update over installed build 5;
-3. install the update and verify app/data/session behavior survives;
-4. test **Settings → Change password** on-device;
-5. once that update path is proven, treat the SideStore distribution flow as fully validated for friends/family.
+1. Safari → Add to Home Screen;
+2. sign in with an existing Fresh Flag account;
+3. enable notifications;
+4. send a test notification;
+5. confirm a real scheduled expiry reminder arrives when the native app does not need to be open.
 
-Do **not** repeat Firebase deployment or another generic current-build install/validation cycle unless there is a newer code/backend change or evidence of a regression.
+After that, return to the still-pending SideStore source-update validation from build 5 to a higher build.
 
 ## Evidence hierarchy
 
@@ -154,5 +117,3 @@ When documentation disagrees, use this order:
 3. this `CURRENT_STATE.md` file;
 4. `DECISIONS.md`;
 5. original `PROJECT_CONTEXT_ORIGINAL.md` phase plan.
-
-The original phase numbering is historical planning context, not proof that a feature remains unimplemented.
