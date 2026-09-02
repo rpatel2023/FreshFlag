@@ -1,8 +1,8 @@
 # FreshFlag — Next Work for Codex
 
-> Current objective: verify the updated build's account-recovery behavior and keep SideStore distribution operational.
+> Current objective: finish the notification-only Home Screen Web Push companion, open/land the PR, deploy it safely, and physically validate reminder delivery on iPhone.
 
-## Current phase
+## Current known-good state
 
 FreshFlag has completed the permanent SideStore distribution validation path:
 
@@ -28,84 +28,82 @@ Preserve these boundaries:
 - Emergency project-operator reset remains local/Admin-SDK-only.
 - Household Owner/Admin roles must never gain authentication-password reset authority over other users.
 
-See `docs/PASSWORD_RECOVERY.md` for the recovery procedure.
-
-## SideStore distribution state
-
-Permanent source URL:
+## Active branch
 
 ```text
-https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
+feature/web-push-companion
 ```
 
-Current published release:
+The PWA is intentionally isolated from the native product surface. It may only:
 
-```text
-Fresh Flag 0.1.1 (6)
+- authenticate an existing Fresh Flag account;
+- register/unregister the current browser PushSubscription;
+- request notification permission;
+- send a test push;
+- display expiry reminder notifications.
+
+Do **not** add inventory, household, barcode, Activity, reminder-rule, expiry-calculation, or item-management behavior to the PWA.
+
+See `docs/WEB_PUSH_COMPANION.md` and D-013 in `docs/DECISIONS.md`.
+
+## Branch completion sequence
+
+1. Finish implementation/tests on `feature/web-push-companion`.
+2. Keep the requested Add/Edit item expiry shortcuts for **+3 months, +6 months, +12 months, +18 months** in this same PR.
+3. Run/verify backend CI and Flutter CI.
+4. Fix CI failures without stopping for user input unless a genuine product/credential decision is required.
+5. Open the PR to `main` with implementation summary, tests, deployment requirements, and physical-validation checklist.
+
+## After merge — deployment
+
+Web Push uses standards-based VAPID directly, not Firebase Messaging in the browser.
+
+From `functions/` after dependencies are installed, generate one VAPID pair:
+
+```bash
+npx web-push generate-vapid-keys --json
 ```
 
-Distribution is validated end-to-end: publication, source add, migration from manual IPA, update detection, and update installation.
+Store the values as Functions secrets:
 
-### SideStore 0.6.3 workaround
-
-A known SideStore 0.6.3 UI bug can show:
-
-```text
-Operation Failed
-An unknown error occurred. (SideStore/AppManager.swift line 723)
+```bash
+firebase functions:secrets:set WEB_PUSH_VAPID_PUBLIC_KEY
+firebase functions:secrets:set WEB_PUSH_VAPID_PRIVATE_KEY
 ```
 
-when the Update button is tapped twice because the first tap starts work without immediately refreshing the button state.
+Then deploy:
 
-Validated workaround:
+```bash
+firebase deploy --only functions,hosting
+```
 
-1. tap Update exactly once;
-2. immediately switch to **News** or another tab;
-3. wait about 20–30 seconds;
-4. return to **My Apps**.
+No Firestore-rule deployment is required unless the branch later changes `firestore.rules`.
 
-Do not diagnose this specific behavior as a FreshFlag release failure.
+## Physical iPhone validation
 
-## Next runtime sequence
+1. Open the hosted notification companion in Safari.
+2. Share → **Add to Home Screen**.
+3. Launch it from the Home Screen.
+4. Sign in with an existing Fresh Flag Firebase account.
+5. Tap **Enable notifications** and allow notifications.
+6. Tap **Send test notification** and confirm it arrives.
+7. Confirm disable/re-enable works and does not affect the native app.
+8. Create/use a reminder rule due soon and confirm a real backend expiry reminder arrives through Web Push.
+9. Confirm existing Discord/local reminder behavior still works independently.
 
-Unless the user names another priority:
+## Remaining smaller runtime checks
 
-1. open Fresh Flag 0.1.1 (6) and verify household/inventory/session state survived the update;
+After Web Push validation, useful but non-blocking checks are:
+
+1. confirm build 6 household/inventory/session state remains intact in normal use;
 2. test **Settings → Change password** on-device;
-3. optionally re-test login with the new password;
-4. investigate Firebase Auth email delivery separately if forgotten-password recovery by email remains unreliable;
-5. prepare concise friend/family onboarding instructions for SideStore when needed.
-
-## Authorization model
-
-```text
-owner
-  - full household administration
-  - member access management
-  - notification rule management
-  - inventory management
-
-admin
-  - normal shared inventory use
-  - notification rule management
-  - invite and member/guest management within the intended boundary
-  - no ownership transfer
-
-member
-  - normal shared inventory use
-  - no household access management
-
-guest
-  - read-only household/inventory/reminder-rule access
-```
-
-Authentication administration is deliberately outside this household role model.
+3. investigate Firebase Auth email delivery separately if forgotten-password recovery by email remains unreliable.
 
 ## Validation discipline
 
-Use the repository's prescribed commands from `AGENTS.md` for code changes. After meaningful implementation, validation, deployment, or release events, update:
+Use `AGENTS.md` commands for repository changes. Keep these updated after meaningful implementation/deployment/validation:
 
 - `docs/CURRENT_STATE.md`;
 - `docs/NEXT_WORK.md`;
 - `docs/DECISIONS.md` when architectural/product decisions change;
-- `CHANGELOG.md` for meaningful implementation, deployment, validation, or release events.
+- `CHANGELOG.md`.

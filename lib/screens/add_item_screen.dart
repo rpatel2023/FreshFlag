@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/grocery_item.dart';
 import '../models/inventory_category.dart';
 import '../utils/app_theme.dart';
+import '../utils/date_shortcuts.dart';
 import '../viewmodels/grocery_viewmodel.dart';
 
 /// Adds or edits one inventory item through the authoritative Firestore-backed ViewModel.
@@ -226,6 +227,22 @@ class _AddItemScreenState extends State<AddItemScreen> {
                       label: '+30 days',
                       onTap: () => _setExpiryOffset(30),
                     ),
+                    _ExpiryShortcut(
+                      label: '+3 months',
+                      onTap: () => _setExpiryMonthOffset(3),
+                    ),
+                    _ExpiryShortcut(
+                      label: '+6 months',
+                      onTap: () => _setExpiryMonthOffset(6),
+                    ),
+                    _ExpiryShortcut(
+                      label: '+12 months',
+                      onTap: () => _setExpiryMonthOffset(12),
+                    ),
+                    _ExpiryShortcut(
+                      label: '+18 months',
+                      onTap: () => _setExpiryMonthOffset(18),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppTheme.spacingS),
@@ -291,6 +308,13 @@ class _AddItemScreenState extends State<AddItemScreen> {
       _expiryDate = GroceryItem.normalizeDateOnly(
         now.add(Duration(days: days)),
       );
+    });
+  }
+
+  void _setExpiryMonthOffset(int months) {
+    final today = GroceryItem.normalizeDateOnly(DateTime.now());
+    setState(() {
+      _expiryDate = addCalendarMonths(today, months);
     });
   }
 

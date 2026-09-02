@@ -9,6 +9,7 @@ on:
       - 'security-tests/**'
       - 'firestore.rules'
       - 'firebase.json'
+      - 'web-push/**'
       - '.github/workflows/backend-ci.yml'
   workflow_dispatch:
 
@@ -37,6 +38,13 @@ jobs:
 
       - name: Build and test
         run: npm test
+
+      - name: Validate web companion JavaScript and manifest
+        working-directory: ${{ github.workspace }}
+        run: |
+          node --check web-push/app.js
+          node --check web-push/sw.js
+          node -e "JSON.parse(require('fs').readFileSync('web-push/manifest.webmanifest', 'utf8'))"
 
   firestore-rules:
     runs-on: ubuntu-latest

@@ -1,0 +1,40 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0f1210;
+  color: #eef3ef;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: #0f1210; }
+.shell { width: min(680px, 100%); margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom)); }
+.card { background: #1b211d; border: 1px solid #2c352f; border-radius: 22px; padding: 22px; margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.hero { display: flex; gap: 16px; align-items: flex-start; }
+.logo { border-radius: 16px; flex: 0 0 auto; }
+h1, h2, p { margin-top: 0; }
+h1 { font-size: 28px; margin-bottom: 8px; }
+h2 { font-size: 18px; margin-bottom: 8px; }
+.eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 12px; color: #9bd39e; font-weight: 700; margin-bottom: 6px; }
+.subtle { color: #bac4bd; line-height: 1.45; margin-bottom: 0; }
+.account { font-weight: 600; margin-bottom: 0; overflow-wrap: anywhere; }
+label { display: block; font-size: 14px; color: #d5ddd7; margin-bottom: 14px; }
+input { width: 100%; margin-top: 6px; border: 1px solid #3a463e; border-radius: 14px; padding: 13px 14px; background: #111713; color: inherit; font: inherit; }
+button { width: 100%; border: 0; border-radius: 14px; padding: 13px 16px; background: #8ed592; color: #0c120d; font: inherit; font-weight: 700; }
+button.secondary { background: #29322c; color: #edf4ee; }
+button.danger { background: #402829; color: #ffd9d9; }
+button.compact { width: auto; padding: 9px 12px; }
+button:disabled { opacity: .5; }
+.row { display: flex; gap: 14px; align-items: center; }
+.between { justify-content: space-between; }
+.status-row { align-items: flex-start; }
+.actions { display: grid; gap: 10px; margin-top: 18px; }
+.divider { height: 1px; background: #303a33; margin: 20px 0; }
+.pill { display: inline-flex; border-radius: 999px; padding: 6px 10px; background: #3a3122; color: #ffd89a; font-size: 12px; font-weight: 700; }
+.pill.on { background: #213c27; color: #a9e7af; }
+.message { min-height: 24px; text-align: center; color: #c8d1ca; padding: 0 6px; }
+.message.error { color: #ffb7b7; }
+.message.success { color: #a9e7af; }
+.hidden { display: none !important; }
+@media (max-width: 520px) {
+  .hero { display: block; }
+  .hero .logo { margin-bottom: 14px; }
+}

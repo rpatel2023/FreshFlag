@@ -106,22 +106,52 @@ Working workaround validated on-device:
 
 The update then completes normally. Do not treat this SideStore UI bug as a FreshFlag packaging failure.
 
+## Web Push companion — in development
+
+Branch `feature/web-push-companion` adds a deliberately thin Home Screen web app for server-originated expiry reminders without requiring the paid Apple Developer Program.
+
+Architecture boundary:
+
+- existing Firestore/reminder rules stay authoritative;
+- a separate scheduled backend worker evaluates the same household reminder rules and sends standards-based Web Push;
+- the PWA only signs in, registers/unregisters a browser PushSubscription, sends a test notification, and displays incoming reminder notifications;
+- the PWA does **not** duplicate inventory, household, barcode, activity, reminder-rule, expiry, or item-lifecycle logic;
+- Web Push uses its own deterministic delivery ID so a successful Web Push does not suppress Discord/FCM/local channels;
+- deleting the PWA leaves the native Flutter app functional.
+
+The branch currently includes:
+
+- authenticated Web Push subscription management and test delivery;
+- scheduled `processWebPushExpiryReminders` worker using existing reminder rules;
+- stale endpoint cleanup on HTTP 404/410;
+- static notification-only PWA under `web-push/`;
+- Firebase Hosting configuration;
+- backend/CI validation for Functions plus PWA JavaScript/manifest;
+- `docs/WEB_PUSH_COMPANION.md` deployment/maintenance instructions;
+- Add/Edit item expiry shortcuts for **+3, +6, +12, and +18 months**, using calendar-month arithmetic with end-of-month clamping.
+
+This work is **not production-deployed yet**. It still needs PR/CI completion, VAPID secret creation, Functions/Hosting deployment, and physical iPhone Home Screen/Web Push validation.
+
 ## Current known gaps / validation still useful
 
 - No current blocking product gap is documented.
 - SideStore source publication, source migration, update discovery, and update installation are validated end-to-end.
 - Password-reset email delivery through Firebase remains unresolved in production Gmail testing.
 - **Settings → Change password** still needs a simple on-device functional test.
-- After build 6, app data/session continuity should be spot-checked if not already observed in normal use.
+- The Web Push companion requires deployment and physical validation before it can be treated as operational.
 
 ## Current priority
 
-Unless the user names another priority:
+The user explicitly prioritized finishing the notification-only Web Push companion. Finish that work through a PR unless a genuine user decision is required. After merge/deployment, validate on a physical iPhone:
 
-1. open Fresh Flag after the build 6 update and confirm household data/session state is intact;
-2. test **Settings → Change password** on-device;
-3. separately investigate Firebase Auth email-delivery reliability if forgotten-password email recovery is still required;
-4. then treat SideStore distribution as fully operational for friends/family, with the 0.6.3 workaround documented until SideStore 0.6.4+ is adopted.
+1. Safari → Add to Home Screen;
+2. sign in with an existing Fresh Flag account;
+3. enable notifications;
+4. send a test notification;
+5. confirm a real scheduled expiry reminder arrives when the native app does not need to be open;
+6. verify existing local/Discord reminder paths still operate independently.
+
+After that, resume the smaller account-recovery validation items if still useful.
 
 Do **not** repeat Firebase deployment or generic source-add/install work unless a newer change requires it.
 

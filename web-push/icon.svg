@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fresh Flag">
+  <rect width="512" height="512" rx="112" fill="#142018"/>
+  <path d="M154 112v288" stroke="#9BE49F" stroke-width="34" stroke-linecap="round"/>
+  <path d="M176 126h178c20 0 31 24 18 39l-49 55 49 55c13 15 2 39-18 39H176z" fill="#9BE49F"/>
+  <circle cx="154" cy="400" r="24" fill="#E9F6EA"/>
+</svg>
