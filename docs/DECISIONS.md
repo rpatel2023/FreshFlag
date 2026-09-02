@@ -88,3 +88,14 @@ Fresh Flag's SideStore/free Personal Team build should not depend on APNs/FCM re
 For SideStore, expiry reminders are device-local notifications scheduled from the inventory that has synced to that iPhone. Cross-device household activity alerts remain optional Discord notifications and in-app Activity feed entries.
 
 Standard/paid builds may continue to use FCM/APNs remote push for expiry reminders.
+
+## D-012 — Authentication recovery is separate from household administration
+
+Household roles govern Fresh Flag household data, not Firebase Authentication accounts.
+
+- Household Owner/Admin must **not** be able to reset another user's authentication password.
+- A signed-out user normally recovers access through Firebase Authentication's password-reset email/link flow.
+- A signed-in email/password user may change their own password after reauthentication.
+- A trusted Fresh Flag project operator may perform emergency recovery with privileged Firebase Admin SDK credentials using the local-only repository tool.
+
+Production testing confirmed that Firebase password-reset emails are sent; during testing they were initially hard to locate, so absence from the visible inbox must not be treated as proof that the reset mechanism is broken.
