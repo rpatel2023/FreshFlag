@@ -8,11 +8,19 @@ Fresh Flag separates normal user recovery from project-operator recovery.
 
 The login screen uses Firebase Authentication's password-reset email API.
 
-Firebase accepting the request does not guarantee that a message was delivered, so the app deliberately shows a non-enumerating confirmation:
+This path is confirmed working in production: password-reset requests from both the Fresh Flag app and the Firebase Console produced reset emails. During testing, the emails were initially hard to locate, which made delivery appear broken even though Firebase had sent them.
+
+Because Firebase accepting a reset request does not itself prove that a message has reached the inbox yet, the app deliberately shows a non-enumerating confirmation:
 
 > If an account exists for that email, a reset link will be sent. Check your inbox and spam folder.
 
-If Firebase mail delivery is unavailable, use one of the paths below instead of giving household roles account-level password powers.
+The normal forgotten-password flow remains:
+
+```text
+Login → Forgot password? → Firebase reset email → Firebase reset link → choose a new password
+```
+
+If the message is not immediately visible, check spam/junk, search all mail for the Firebase sender, and allow for delivery/indexing delay before treating the path as failed.
 
 ### Change password while signed in
 
@@ -28,7 +36,7 @@ Fresh Flag requires the current password, reauthenticates with Firebase, and the
 
 Household `owner` and `admin` roles are application authorization roles. They must **not** be able to change another user's Firebase Authentication password.
 
-A trusted Fresh Flag project operator with Firebase/Google Cloud administrative credentials can reset an account out of band with the repository's Admin SDK tool.
+A trusted Fresh Flag project operator with Firebase/Google Cloud administrative credentials can reset an account out of band with the repository's Admin SDK tool when normal user recovery is genuinely unavailable.
 
 The tool is local-only and is not deployed as a Cloud Function or shipped in the iPhone app.
 
@@ -62,6 +70,6 @@ After an operator reset, give the temporary password to the user through an appr
 ## Security boundary
 
 - Household Owner/Admin: manage household data and access only.
-- Individual user: can change their own password after reauthentication.
+- Individual user: can use the normal Firebase reset-email flow or change their own password after reauthentication.
 - Firebase project operator: can perform emergency account recovery using privileged Admin SDK credentials.
 - No password is ever readable or recoverable from Firebase; recovery always sets a new password.
