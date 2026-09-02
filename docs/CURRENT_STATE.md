@@ -5,7 +5,7 @@
 
 ## Product identity
 
-The project is **FreshFlag**, an iPhone food-expiry tracker built with Flutter and Firebase. The current private-distribution path is **SideStore**, using zero-fee unsigned IPA builds that are signed by each user's own Apple Account. The core loop remains:
+The project is **FreshFlag**, an iPhone food-expiry tracker built with Flutter and Firebase. The current private-distribution path is **SideStore**, using zero-fee unsigned IPA builds that are signed by each user's own Apple Account.
 
 ```text
 scan / add item
@@ -21,87 +21,50 @@ scan / add item
 
 ### Real-device use
 
-- FreshFlag has moved through its earlier structured real-device acceptance-testing phase.
+- FreshFlag has completed its earlier structured real-device acceptance-testing phase.
 - A second household user has installed/joined successfully.
-- The second user can join the same household and see the shared inventory.
-- Shared household inventory synchronization works across the tested two-iPhone flows.
-- The current SideStore build is installed and has been in normal household use for several days as of 2026-09-02.
-- The current phone build includes the PR #15 through PR #18 feature set plus the newer post-validation source batch described below.
+- Shared household inventory and realtime two-iPhone synchronization work.
+- The app has been in normal household use for several days.
 - Do not send the user back through old build/install or PR #15–#18 acceptance gates unless a new regression is reported.
 
-### Item lifecycle
+### Item lifecycle and household access
 
-- Marking an item **Consumed** successfully writes the state change.
-- After consumption, the item exposes **Restore to inventory**.
-- Consumed items remain reachable through the explicit Active / Consumed inventory views added in PR #15.
-- Cross-device consume/restore behavior has been validated on real devices.
+- Consume/restore works across devices.
+- Consumed items remain reachable through explicit Active / Consumed views.
+- Household roles Owner/Admin/Member/Guest are implemented.
+- **Members & access** is implemented.
+- Guest household access is read-only and enforced in Firestore/backend rules.
+- Personal Favourites remain per-user, not household-owned.
 
-### Reminders
+### Reminders and newer source batch
 
-- Reminder behavior has been manually tested.
-- SideStore builds support on-device local expiry reminders from synced household inventory.
-- Treat reminders as an existing implemented feature, not a greenfield phase.
+The current app/backend includes:
 
-### Household roles and member management
+- English-preferred Open Food Facts lookup;
+- household barcode product cache/backfill;
+- persistent custom categories;
+- granular Discord item activity opt-ins;
+- household activity feed and Activity tab;
+- SideStore-local expiry reminders from synced inventory.
 
-- Household member management is implemented in the current phone build.
-- The app has a discoverable **Members & access** path.
-- The owner can promote a trusted household member from Member to Admin without making them Owner.
-- The trusted member/Admin path for reminder-rule and invite management has been tested on device.
-- Guest/read-only behavior has been tested: guests can read household data/inventory/reminder rules but cannot perform privileged household or inventory writes.
-- Role behavior is enforced in Firestore rules and backend callable functions, not only in Flutter UI.
-
-### Favourites and inventory polish
-
-- Personal favourites are implemented and tested as per-user data, not household-owned data.
-- Favourites do not leak between household accounts.
-- Guest users can manage personal favourites, but **Add again** is disabled while household access is read-only.
-- Existing inventory items can be edited from Item details.
-- Edit propagation, expiry shortcuts, inventory search/sort, tappable reminder rows, consumed Undo, and relaunch persistence have been tested on device.
-
-## Newer source batch and deployment state
-
-The current installed build includes the post-validation source batch with:
-
-- English-preferred Open Food Facts product-name lookup;
-- household barcode product cache and one-time backfill from existing barcode inventory;
-- persistent household custom categories and dashboard category filters;
-- granular per-user Discord activity opt-ins;
-- backend item create/update/delete activity fanout and household activity feed;
-- an in-app **Activity** tab;
-- SideStore-local expiry reminders from synced inventory, exposed as **Expiry reminders on this iPhone**.
-
-**Backend deployment is complete.** The updated Cloud Functions and Firestore rules for this source batch have already been deployed.
-
-**Build/install is also complete.** The resulting SideStore build has been installed and used in normal household operation for several days. This is enough to close the old generic "build/install current IPA" gate. Do not repeat it merely because older notes say the batch is awaiting installation.
+The corresponding Cloud Functions and Firestore rules are already deployed.
 
 ## Password recovery
 
-PR #20 (`df32acbfe4e699a27845dff25b40587dc697ffa9`) hardened authentication recovery and is merged to `main`.
+PR #20 merged to `main` as `df32acbfe4e699a27845dff25b40587dc697ffa9` and is published in **Fresh Flag 0.1.1 (6)**.
 
-Current behavior:
+Current design:
 
-- **Forgot password?** on the login screen uses Firebase Authentication's password-reset email flow.
-- Production testing confirmed that reset emails are sent; during testing they were initially hard to locate, which made delivery appear broken.
-- The login confirmation deliberately says that a reset link *will be sent if an account exists* rather than claiming inbox delivery.
-- Signed-in users can use **Settings → Change password**; Fresh Flag reauthenticates with the current password before setting the new one.
-- A local-only Firebase Admin SDK operator tool exists for emergency recovery when normal reset-email recovery is genuinely unavailable.
-- Household Owner/Admin roles do **not** receive the ability to change another user's authentication password.
+- Login → **Forgot password?** uses Firebase Authentication reset email.
+- Firebase accepts the reset request from both FreshFlag and Firebase Console, but production Gmail delivery was not observed during testing. Treat email delivery as **unresolved**, not confirmed working.
+- The login confirmation deliberately avoids claiming guaranteed delivery.
+- Signed-in users now have **Settings → Change password**, with current-password reauthentication before updating the password.
+- A local-only Firebase Admin SDK operator recovery command exists for emergency account recovery.
+- Household Owner/Admin roles do **not** gain the ability to change another user's authentication password.
 
-See `docs/PASSWORD_RECOVERY.md` for the exact recovery/operator procedure.
+See `docs/PASSWORD_RECOVERY.md` for the operator procedure and security boundary.
 
 ## SideStore distribution
-
-PR #19 added the publisher-side distribution path.
-
-The first permanent SideStore release was successfully published on 2026-09-02:
-
-- release: **Fresh Flag 0.1.0 (5)**;
-- tag: `sidestore-v0.1.0-b5`;
-- target commit: `b161bf76b2f5b267436fe0c4c388c15cb6003f21`;
-- release assets: `FreshFlag.ipa` and `source.json`;
-- workflow run `33643532182`: **success**;
-- the workflow's post-publish verification step successfully validated both the source JSON and IPA URL.
 
 Permanent source URL:
 
@@ -109,41 +72,58 @@ Permanent source URL:
 https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
 ```
 
-One-tap SideStore source link:
+One-tap source link:
 
 ```text
 sidestore://source?url=https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
 ```
 
-On-device source migration has also passed:
+Validated milestones:
 
-- the permanent **Fresh Flag** source was added successfully in SideStore;
-- SideStore showed one Fresh Flag app in that source;
-- the existing FreshFlag install had originally been installed from the IPA/iLoader path and was not listed under **My Apps**;
-- installing Fresh Flag from the new source over the existing app succeeded without uninstalling first;
-- Fresh Flag now appears under **My Apps** as a SideStore-managed app with a fresh 7-day signing window.
+- **0.1.0 (5)** published successfully with `FreshFlag.ipa` and `source.json`.
+- The permanent Fresh Flag source was added successfully on-device.
+- An existing IPA/iLoader-installed FreshFlag was migrated in-place into SideStore management without uninstalling.
+- Fresh Flag appeared under **My Apps** with a fresh 7-day signing window.
+- **0.1.1 (6)** was published successfully from PR #20.
+- SideStore correctly detected 0.1.1 (6) as an update over installed build 5.
+- The build 5 → build 6 update completed successfully through the permanent source.
 
-This proves the source-based install/migration path.
+### SideStore 0.6.3 update UI bug
 
-## Current known gaps / bugs
+SideStore 0.6.3 has a known UI bug where the first Update tap may begin the update without visually changing the button. Tapping a second time can trigger:
 
-- No current blocking product gap is documented after existing real-device testing, backend deployment, and several days of normal use of the current build.
-- Password-reset email delivery is confirmed working; the prior issue was visibility/delay, not broken Firebase wiring.
-- The first permanent SideStore release is published successfully.
-- Source add/install/migration into SideStore management is validated on-device.
-- A source-based update from build 5 to a higher build still needs validation.
+```text
+Operation Failed
+An unknown error occurred. (SideStore/AppManager.swift line 723)
+```
+
+Working workaround validated on-device:
+
+1. tap **Update exactly once**;
+2. immediately switch to another tab such as **News**;
+3. wait about 20–30 seconds;
+4. return to **My Apps**.
+
+The update then completes normally. Do not treat this SideStore UI bug as a FreshFlag packaging failure.
+
+## Current known gaps / validation still useful
+
+- No current blocking product gap is documented.
+- SideStore source publication, source migration, update discovery, and update installation are validated end-to-end.
+- Password-reset email delivery through Firebase remains unresolved in production Gmail testing.
+- **Settings → Change password** still needs a simple on-device functional test.
+- After build 6, app data/session continuity should be spot-checked if not already observed in normal use.
 
 ## Current priority
 
-Unless the user names a higher-priority bug or feature:
+Unless the user names another priority:
 
-1. publish the merged password-recovery improvements as the next SideStore release using a higher build number;
-2. verify SideStore surfaces that release as an update over installed build 5;
-3. install the update and verify app/data/session behavior survives;
-4. test **Settings → Change password** on-device;
-5. once that update path is proven, treat the SideStore distribution flow as fully validated for friends/family.
+1. open Fresh Flag after the build 6 update and confirm household data/session state is intact;
+2. test **Settings → Change password** on-device;
+3. separately investigate Firebase Auth email-delivery reliability if forgotten-password email recovery is still required;
+4. then treat SideStore distribution as fully operational for friends/family, with the 0.6.3 workaround documented until SideStore 0.6.4+ is adopted.
 
-Do **not** repeat Firebase deployment or another generic current-build install/validation cycle unless there is a newer code/backend change or evidence of a regression.
+Do **not** repeat Firebase deployment or generic source-add/install work unless a newer change requires it.
 
 ## Evidence hierarchy
 
@@ -154,5 +134,3 @@ When documentation disagrees, use this order:
 3. this `CURRENT_STATE.md` file;
 4. `DECISIONS.md`;
 5. original `PROJECT_CONTEXT_ORIGINAL.md` phase plan.
-
-The original phase numbering is historical planning context, not proof that a feature remains unimplemented.
