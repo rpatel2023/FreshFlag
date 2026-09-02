@@ -106,7 +106,7 @@ jobs:
           SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")"
           BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
           FIREBASE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' ios/Runner/GoogleService-Info.plist)"
-          FCM_AUTO_INIT="$(/usr/libexec/PlistBuddy -c 'Print :FirebaseMessagingAutoInitEnabled' "$APP/Info.plist")"
+          FCM_AUTO_INIT="$(/usr/libexec/PlistBuddy -c 'Print :FirebaseMessagingAutoInitEnabled' "$APP/Info.plist)"
 
           test "$BUNDLE_ID" = "com.rpatel2023.freshflag"
           test "$SHORT_VERSION" = "$VERSION"
@@ -156,7 +156,7 @@ jobs:
           jq -n \
             --arg sourceURL "$SOURCE_URL" \
             --arg version "$VERSION" \
-            --arg buildNumber "$BUILD_NUMBER" \
+            --arg buildVersion "$BUILD_NUMBER" \
             --arg date "$DATE" \
             --arg notes "$RELEASE_NOTES" \
             --arg downloadURL "$DOWNLOAD_URL" \
@@ -166,6 +166,7 @@ jobs:
               name: "Fresh Flag",
               identifier: "com.rpatel2023.freshflag.source",
               sourceURL: $sourceURL,
+              subtitle: "Private Fresh Flag builds for SideStore.",
               apps: [
                 {
                   name: "Fresh Flag",
@@ -174,14 +175,11 @@ jobs:
                   subtitle: "Shared food-expiry tracking for households.",
                   localizedDescription: "Track household food expiry dates, share inventory, and get reminders before food expires.",
                   iconURL: $iconURL,
-                  version: $version,
-                  versionDate: $date,
-                  versionDescription: $notes,
-                  downloadURL: $downloadURL,
-                  size: $size,
+                  category: "utilities",
                   versions: [
                     {
                       version: $version,
+                      buildVersion: $buildVersion,
                       date: $date,
                       localizedDescription: $notes,
                       downloadURL: $downloadURL,
@@ -194,8 +192,9 @@ jobs:
 
           jq -e '.apps | length == 1' "$OUT/source.json" >/dev/null
           jq -e '.apps[0].bundleIdentifier == "com.rpatel2023.freshflag"' "$OUT/source.json" >/dev/null
+          jq -e '.apps[0].versions[0].version == $version' --arg version "$VERSION" "$OUT/source.json" >/dev/null
+          jq -e '.apps[0].versions[0].buildVersion == $build' --arg build "$BUILD_NUMBER" "$OUT/source.json" >/dev/null
           jq -e '.apps[0] | has("marketplaceID") | not' "$OUT/source.json" >/dev/null
-          jq -e '.apps[0] | has("build") | not' "$OUT/source.json" >/dev/null
 
           echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
 
@@ -220,6 +219,8 @@ jobs:
         shell: bash
         env:
           REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
           set -euo pipefail
 
@@ -228,6 +229,8 @@ jobs:
 
           curl --fail --location --retry 5 --retry-delay 2 "$SOURCE_URL" -o /tmp/source.json
           jq -e '.apps[0].bundleIdentifier == "com.rpatel2023.freshflag"' /tmp/source.json >/dev/null
+          jq -e '.apps[0].versions[0].version == $version' --arg version "$VERSION" /tmp/source.json >/dev/null
+          jq -e '.apps[0].versions[0].buildVersion == $build' --arg build "$BUILD_NUMBER" /tmp/source.json >/dev/null
           curl --fail --location --head --retry 5 --retry-delay 2 "$IPA_URL" >/dev/null
 
       - name: Upload release bundle as workflow artifact
