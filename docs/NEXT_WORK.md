@@ -1,62 +1,65 @@
 # FreshFlag — Next Work for Codex
 
-> Current objective: publish and validate the permanent SideStore distribution path from the current known-good build.
+> Current objective: publish PR #20 password-recovery improvements as the next SideStore release and validate the source-based update path.
 
 ## Current phase
 
-FreshFlag is beyond both the earlier PR #15–#18 acceptance phase and the later generic "deploy/build/install current source batch" phase.
+FreshFlag is beyond the earlier PR #15–#18 acceptance phase, backend deployment gate, and first permanent SideStore source-install/migration test.
 
-The current SideStore build:
+Current known-good state:
 
-- is installed on the existing household devices;
-- has been used in normal household operation for several days as of 2026-09-02;
-- uses the already-deployed current Cloud Functions and Firestore rules;
-- includes the newer source batch with local SideStore expiry notifications, Activity, product cache/categories, and granular Discord activity behavior.
+- production Cloud Functions/Firestore rules for the current source batch are already deployed;
+- the app has been in normal household use on real devices;
+- permanent SideStore release **0.1.0 build 5** is published;
+- the permanent Fresh Flag source has been added successfully on-device;
+- the previous IPA/iLoader-installed FreshFlag was migrated into SideStore management without uninstalling;
+- PR #20 password-recovery hardening is merged to `main` as `df32acbfe4e699a27845dff25b40587dc697ffa9`.
 
-Do not repeat Firebase deployment or another generic build/install cycle unless a newer code change requires it or a regression is reported.
+Do not repeat older deployment, generic install, or source-add steps unless a regression is reported.
 
-## Current known-good behavior
+## Password recovery state
 
-Preserve the already-tested behavior:
+Preserve the following design:
 
-- Active / Consumed inventory navigation and Restore;
-- invite/join household and realtime shared inventory;
-- household roles and **Members & access** management;
-- Admin/trusted-member reminder-rule and invite permissions;
-- Guest read-only household behavior;
-- item add/edit, consume/restore, and cross-device propagation;
-- expiry shortcuts, inventory search/sort, tappable reminder rows, consumed Undo;
-- personal Favourites per account;
-- auth/household/inventory/Favourites/Discord/SideStore refresh persistence;
-- SideStore-local expiry reminder support;
-- current deployed backend/rules behavior.
+- Login → **Forgot password?** uses Firebase Authentication reset email.
+- Production testing confirmed Firebase reset emails are sent; they were initially hard to locate, not actually absent.
+- The app must not claim guaranteed inbox delivery merely because Firebase accepted the request.
+- Signed-in users can use **Settings → Change password**, with current-password reauthentication.
+- Emergency project-operator reset remains local/Admin-SDK-only.
+- Household Owner/Admin roles must never gain authentication-password reset authority over other users.
 
-## SideStore distribution work
+See `docs/PASSWORD_RECOVERY.md` for the recovery procedure.
+
+## SideStore distribution state
 
 PR #19 added the publisher-side release path.
 
-The repository supports:
+Permanent source URL:
 
-- the existing temporary unsigned IPA workflow for ad-hoc development builds;
-- a **Publish SideStore Release** workflow for permanent GitHub Releases;
-- release assets `FreshFlag.ipa` and `source.json`;
-- permanent source URL `https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json`;
-- per-user SideStore signing with each tester's own Apple Account.
+```text
+https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json
+```
 
-The remaining milestone is the **first permanent release and source-based install/update validation**.
+Current published release:
+
+```text
+Fresh Flag 0.1.0 (5)
+```
+
+Source installation/migration is already validated. The remaining proof is **update detection and update installation**.
 
 ## Next runtime sequence
 
 Unless the user names another priority:
 
-1. run **Publish SideStore Release** against the current known-good `main` build;
-2. confirm the GitHub Release contains `FreshFlag.ipa` and `source.json`;
-3. add the permanent FreshFlag source to SideStore on an existing test phone;
-4. verify FreshFlag is discoverable/installable from that source;
-5. validate the update path with a subsequent build when practical;
-6. once the source path is proven, share the one-time SideStore setup/source instructions with friends/family.
-
-Do not gate this on another backend deployment or generic device-validation pass.
+1. publish the merged password-recovery change as the next SideStore release, using a version/build greater than `0.1.0 (5)`;
+2. refresh/check the Fresh Flag source on an iPhone currently running build 5;
+3. confirm SideStore surfaces the new release as an **Update** rather than requiring another manual IPA/source migration;
+4. install the update without deleting Fresh Flag;
+5. verify household/app data and expected auth state survive the update;
+6. test **Settings → Change password** on-device;
+7. optionally re-test **Forgot password?** and confirm the Firebase reset email/link path still works;
+8. once the update path passes, treat the SideStore distribution mechanism as fully validated for friends/family.
 
 ## Authorization model
 
@@ -81,11 +84,9 @@ guest
   - read-only household/inventory/reminder-rule access
 ```
 
-Role semantics are enforced in Flutter capability checks, Firestore rules, and backend callable functions. Do not create a parallel client-only authorization system.
+Authentication administration is deliberately outside this household role model.
 
 ## Validation discipline
-
-The user's normal use of the current build closes the old generic install/viability gate. Do not infer that every individual newer feature has been exhaustively exercised; test a specific feature when work touches it or a regression is suspected.
 
 Use the repository's prescribed commands from `AGENTS.md` for code changes. After meaningful implementation, validation, deployment, or release events, update:
 
