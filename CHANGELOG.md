@@ -1,158 +1,58 @@
 # Fresh Flag Changelog
 
-This file is the current project handoff and progress log. The detailed historical log remains permanently available in Git history; the pre-handoff version is the `CHANGELOG.md` blob present at merge commit `705d498977fef87c2e38d7fe8a6085ba1edce5f3`.
+This file is the current project handoff and progress log. Detailed historical changes remain permanently available in Git history.
 
-## Current state — 2026-08-20
+## Current state — 2026-09-02
 
-Fresh Flag has moved through the two-iPhone SideStore/private-distribution acceptance-testing phase. The current installed phone build includes the PR #15 through PR #18 feature set, and production Firebase/Auth/Firestore/Functions behavior has been validated for the tested core flows.
+Fresh Flag is in active real-device household use with the current Firebase backend/rules deployed. The permanent SideStore distribution path is established and the first permanent release has been published.
 
-### Physical validation passed on the installed builds
+### Distribution milestones
 
-- SideStore iOS build #4 launches successfully on a physical iPhone.
-- Firebase email/password sign-in works after the Firebase Auth Pigeon alignment fix.
-- Camera barcode scanning works on-device.
-- Open Food Facts recognized barcode `061120102241` as Pizza Mozzarella and carried it into Add Item.
-- Add Item persisted category, quantity, optional storage location, date-only expiry, and barcode to production Firestore.
-- Inventory survived a full app process restart and reloaded with the expected persisted fields.
-- Marking an inventory item consumed successfully wrote to Firestore and immediately exposed the existing Restore action on the detail screen.
-- The installed build then made the consumed item unreachable after backing out because the dashboard hid consumed items. PR #15 fixed this source-side by adding explicit Active / Consumed views and separate counts.
-- The Reminders screen correctly surfaced a due Heinz Baked Beans item while excluding a later-expiring item.
-- The owner's personal Discord integration connected successfully and its manual test action delivered a message.
-- A real scheduled expiry reminder for Heinz Baked Beans was delivered by the production backend to Discord, validating the SideStore reminder path without APNs/FCM.
-- Household invite creation passed on the owner account.
-- A second iPhone using a separate Fresh Flag/Firebase account accepted the invite and joined the same household.
-- The second iPhone sees the same shared household inventory.
-- **Cross-device realtime create passed:** the second iPhone added a manual item and it appeared automatically on the first iPhone's already-open Inventory screen with no refresh, navigation, or app restart.
-- **Cross-device realtime consume/restore passed:** consuming the shared test item on the second iPhone removed it automatically from the first iPhone's active inventory, and restoring it on the second iPhone made it reappear automatically on the first iPhone without refresh/navigation.
-- **Second-user personal Discord integration passed:** the second Fresh Flag user configured their own Discord webhook and its manual test message arrived successfully.
-- **Two-recipient scheduled Discord fanout passed:** one real scheduled household reminder was independently delivered to both configured users' Discord destinations.
-- **PR #15 through PR #18 current-build acceptance passed:** the latest phone build includes consumed-item navigation, household roles/member management, Fresh Flag branding, item editing, and personal Favourites.
-- **Role elevation passed:** the Owner can manage member access and promote a trusted household member without making them Owner.
-- **Admin capability passed:** the promoted trusted member can manage reminder rules and invites as intended.
-- **Guest restriction passed:** Guest access remains genuinely read-only for household inventory while personal Favourites remain manageable and **Add again** is disabled.
-- **Personal Favourites passed:** favourites are per Firebase user and are not inherited by the other household account.
-- **Inventory polish passed:** edit item, expiry shortcuts, inventory search/sort, cleaner card metadata, tappable reminder rows, and consumed Undo were validated on device.
-- **Persistence passed:** relaunch preserved auth, household selection, inventory, Favourites, Discord configuration, and SideStore refresh health.
+- Permanent SideStore release **Fresh Flag 0.1.0 (5)** published successfully.
+- Release assets include `FreshFlag.ipa` and `source.json`.
+- Permanent source URL: `https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json`.
+- The permanent source was added successfully on-device.
+- An existing FreshFlag install originally installed through the IPA/iLoader path was upgraded in place into SideStore management without uninstalling.
+- Fresh Flag now appears under SideStore **My Apps** with a normal 7-day signing window.
+- The remaining distribution proof is a source-based update from build 5 to a later build.
 
-## PR #15 — Consumed inventory recovery — MERGED
+### Password recovery hardening — PR #20
 
-PR #15 fixed the physical-test defect where consumed items became unreachable after leaving Item details.
+PR #20 merged to `main` as `df32acbfe4e699a27845dff25b40587dc697ffa9`.
 
-- Adds explicit **Active / Consumed** inventory views.
-- Shows separate Active, Expiring, Expired, and Consumed counts.
-- Keeps consumed items reopenable so **Restore to inventory** remains reachable.
-- Merged to `main` as `55672e641a1365a4e4604c11b66512b5da053107`.
-- This fix is present in the current installed phone build and has been validated.
+It adds:
 
-## PR #16 — Household roles and member management — MERGED
+- signed-in **Settings → Change password**;
+- Firebase reauthentication with the current password before setting a new password;
+- safer Forgot-password confirmation wording that does not claim guaranteed inbox delivery merely because Firebase accepted a reset request;
+- a local-only Firebase Admin SDK operator recovery command for emergency account resets;
+- documentation separating household authorization from authentication administration.
 
-Physical testing exposed that the original `owner` / `member` model was too coarse. PR #16 adds:
+Production testing confirmed the normal Firebase password-reset email/link flow works. Reset emails were sent from both the app and Firebase Console; they were initially hard to locate, which made delivery appear broken. The normal forgotten-password path therefore remains Firebase reset email/link.
 
-- **Owner** — full control; only Owner may assign Admin; ownership transfer is not implemented yet.
-- **Admin** — full inventory access; manages reminder rules, invites, Members, and Guests within the intended boundary.
-- **Member** — inventory write access; reminder-rule read access; no household access management.
-- **Guest** — read-only household/inventory/reminder-rule access.
-- **Members & access** screen.
-- Backend-managed member listing, role changes, removals, and non-owner leave flow.
-- Live membership/role updates on the affected device.
-- Firestore enforcement of Guest read-only inventory.
-- Owner/Admin reminder-rule and invite management.
-- Fix for the observed `1 days` reminder wording in both backend and client rendering.
+Household Owner/Admin roles do **not** gain the ability to change another user's Firebase Authentication password.
 
-Validation on final PR #16 head `085dc03bd62fbec2a76ff098b8f206f4ac83d0c5`:
+See `docs/PASSWORD_RECOVERY.md` for the exact recovery procedure and security boundary.
 
-- Backend CI run `31895438318`: **success**.
-- Flutter CI run `31895438384`: **success**.
-- Merged to `main` as `705d498977fef87c2e38d7fe8a6085ba1edce5f3`.
-- This feature set is present in the current installed phone build and has been validated.
+### Current next step
 
-## PR #17 — Fresh Flag branding/text normalization — MERGED
+Publish the PR #20 password-recovery improvements as the next SideStore release with a version/build higher than `0.1.0 (5)`, then verify that SideStore detects and installs it as an update over build 5 while preserving app data and expected auth state.
 
-PR #17 establishes the product presentation convention:
+## Historical implementation state — 2026-08-20
 
-- **User-facing product name:** `Fresh Flag`.
-- iOS and Android display labels use `Fresh Flag`.
-- Login, account creation, household setup, Settings/About, camera permission, Discord settings, Discord sender name, and Discord test-message branding use `Fresh Flag`.
-- Ordinary actions use sentence case.
-- Client/backend display-name constants and `docs/branding.md` prevent future drift.
-- Technical identifiers remain unchanged: Dart package `freshflag`, `FreshFlagApp`, bundle ID `com.rpatel2023.freshflag`, Firebase project `freshflag`, GitHub repo `FreshFlag`, and internal IPA/app artifact names.
+Fresh Flag had completed two-iPhone SideStore/private-distribution acceptance testing for the core feature set, including:
 
-Validation on PR #17 head `8b123d8ea97f5bd62316e566854a16b4efac4c99`:
+- Firebase email/password sign-in;
+- camera barcode scanning and Open Food Facts lookup;
+- shared household inventory and two-iPhone realtime synchronization;
+- consume/restore lifecycle and consumed-item recovery navigation;
+- reminder rules and Discord reminder delivery;
+- household invites and role management (Owner/Admin/Member/Guest);
+- Guest read-only enforcement;
+- personal Favourites;
+- inventory editing/search/sort/expiry shortcuts;
+- SideStore-local expiry reminders;
+- Activity feed and granular Discord item activity notifications;
+- household product cache and custom categories.
 
-- Backend CI run `31896789088`: **success**.
-- Flutter CI run `31896789118`: **success**.
-- Merged to `main` as `68974ae5f58368bce5941a55aa332b59544c2a44`.
-- This branding work is present in the current installed phone build and has been validated.
-
-## PR #18 — Favourites and final pre-IPA inventory polish — MERGED
-
-PR #18 is the final low-risk convenience/polish batch before the next SideStore IPA.
-
-### Personal Favourites
-
-- Adds a **Favourites** bottom-navigation tab using Canadian spelling in the UI.
-- A signed-in user can star/unstar an inventory product from Item details.
-- Favourites are **personal to the Firebase user**, not household-owned, so each user has their own reusable product list.
-- Favourites are stored under `users/{uid}/favorites` and protected by self-only Firestore rules.
-- The Firestore Emulator proves another signed-in user cannot read or write someone else's favourites.
-- A favourite stores reusable product fields only: name, barcode, category, usual quantity, and usual storage location.
-- Purchase-specific expiry and notes are deliberately not copied into the favourite template.
-- **Add again** opens the standard Add item form prefilled from the favourite and still requires a fresh expiry date.
-- Barcode favourites deduplicate by barcode.
-- Manual favourites deduplicate by normalized product name + category rather than inventory record ID, avoiding duplicate templates across purchases.
-- Favourite matching also tolerates item edits/source identity so star/unstar remains predictable.
-- Consuming or deleting the live inventory record does not delete the personal favourite.
-- Guest users may curate personal favourites, but **Add again** is disabled while their current household access is read-only.
-- Re-adding a barcode-backed favourite is labelled **Favourite product**, rather than incorrectly looking like a fresh barcode scan.
-
-### Inventory / reminder polish
-
-- Existing inventory items can now be edited from **Item details**.
-- The same form is reused for manual add, barcode add, favourite re-add, and edit.
-- Edit supports name, quantity, category, expiry, storage location, and notes while preserving the inventory record identity/barcode/audit context.
-- Quick expiry shortcuts: **Today, +3 days, +7 days, +14 days, +30 days**, with the regular date picker still available.
-- Inventory search by item name.
-- Inventory sort options: **Expiry soonest**, **Name A–Z**, **Recently added**.
-- Inventory cards now prioritize category, quantity, storage location, and expiry status; raw barcode remains available in Item details instead of cluttering the list.
-- One-day status reads **Expires tomorrow**.
-- Reminder rows are tappable and open the corresponding Item details screen.
-- **Mark consumed** now offers an **Undo** SnackBar action.
-- Remaining user-facing copy normalization was completed, including the missed Inventory `Fresh Flag` title and `Scan barcode` sentence case.
-
-PR #18 intentionally adds **no new package dependency and no new Cloud Function**. Its only backend/runtime addition is the personal-Favourites Firestore security rule.
-
-Validation on final PR #18 head `96c3ca8a5f132f0a92ae1951a6eff9c2bba074d2`:
-
-- Backend CI run `31897972971`: **success** — Functions build/tests and Firestore Emulator authorization tests passed.
-- Flutter CI run `31897972983`: **success** — dependency resolution, lockfile reproducibility, Flutter tests, analyzer, and Linux release build passed.
-- PR #18 merged to `main` as `79a2dc00f793ee448615e3cd2bdc9284491a6c89`.
-- This feature set is present in the current installed phone build and has been validated.
-
-## Current handoff
-
-The old deployment/build/physical-acceptance gate is complete. Do not send future agents back through the PR #15 through PR #18 acceptance checklist unless a new regression is reported.
-
-### Unreleased source changes — 2026-08-20
-
-- Barcode/Open Food Facts lookup now requests English responses and prefers English product-name fields before localized fallback fields, addressing scanned items appearing in French.
-- Manually entered barcode products are now saved in a household product cache so future scans can prefill the saved name/category instead of repeatedly showing Product not found.
-- Existing inventory items with barcodes now backfill the household product cache once per household when an inventory writer loads the household.
-- Add/Edit item now lets users create a persistent custom household category directly from the category picker.
-- Dashboard category filters now include saved household categories plus categories found on actual inventory items.
-- Discord settings now include a separate per-user opt-in for item-added notifications.
-- A new Cloud Functions item-create trigger fans out Discord item-added messages only to household members who configured Discord and enabled that event.
-- SideStore builds now expose **Expiry reminders on this iPhone**, scheduling local on-device expiry alerts from synced inventory instead of relying on APNs/FCM.
-- Discord settings now include granular activity opt-ins for item added, item changed, item consumed, item restored, and item removed notifications.
-- Backend item create/update/delete triggers now record household activity feed entries and fan out opted-in Discord activity messages.
-- The app now includes an **Activity** bottom-navigation tab backed by `households/{householdId}/activity`.
-- Firestore rules allow household members, including Guests, to read activity entries while keeping activity writes backend-only.
-- Fixed the existing leave-household snackbar async-context analyzer lint while keeping behavior unchanged.
-
-Validation completed locally:
-
-- `flutter analyze`
-- `flutter test`
-- `cd functions && npm test`
-- `cd security-tests && npm test`
-
-This source batch still needs Cloud Functions/rules deployment, a fresh IPA, and phone validation before it is considered current-build behavior.
+The detailed PR #15–#18 validation history and earlier implementation notes remain available in Git history and should not be treated as pending work.
