@@ -1,11 +1,11 @@
 # FreshFlag — Current Implementation State
 
-> Last updated from project conversation: 2026-08-20
+> Last updated from project conversation: 2026-09-02
 > Purpose: Tell a coding agent what is true *now*, not what the original design spec planned.
 
 ## Product identity
 
-The project is **FreshFlag**, an iPhone/TestFlight food-expiry tracker built with Flutter and Firebase. The core loop remains:
+The project is **FreshFlag**, an iPhone food-expiry tracker built with Flutter and Firebase. The current private-distribution path is **SideStore**, using zero-fee unsigned IPA builds that are signed by each user's own Apple Account. The core loop remains:
 
 ```text
 scan / add item
@@ -19,7 +19,7 @@ scan / add item
 
 ## Confirmed working behavior
 
-### TestFlight / real-device use
+### Real-device use
 
 - The app has moved through the real-device testing phase.
 - A second household user has installed/joined successfully.
@@ -66,44 +66,61 @@ Do not reintroduce a design where consumed items are unreachable.
 - Existing inventory items can be edited from Item details.
 - Edit propagation, expiry shortcuts, inventory search/sort, tappable reminder rows, consumed Undo, and relaunch persistence have been tested on device.
 
-## Source changes after current phone validation
+## Newer source batch and deployment state
 
-The repository now includes a post-validation source batch that still needs deployment/build/device validation:
+The repository includes a post-validation source batch with:
 
-- barcode/Open Food Facts lookup now requests English and prefers English product-name fields before falling back to generic localized fields;
-- manually entered barcode products are persisted in a household product cache so future scans of the same barcode can prefill the saved name/category before falling back to Open Food Facts;
-- existing inventory items with barcodes are backfilled into the household product cache once per household when an inventory writer loads the household;
-- Add/Edit item can create a custom household category from the category picker;
-- custom categories are persisted under the household and remain available even before/after matching inventory items exist;
-- dashboard category filters include saved household categories plus categories found on actual inventory items;
-- Discord settings now include a separate per-user opt-in for item-added notifications;
-- a backend item-create trigger sends Discord item-added messages only to household members who configured a Discord webhook and opted into that event.
-- SideStore builds now have source support for on-device local expiry reminders from the synced inventory, exposed as **Expiry reminders on this iPhone** instead of unavailable remote push.
-- Discord item activity opt-ins are now granular in source: item added, item changed, item consumed, item restored, and item removed.
-- Backend item create/update/delete triggers now write a household-readable activity feed under `households/{householdId}/activity`, and the app exposes it as an **Activity** tab.
-- Household members, including guests, can read activity entries; clients cannot write them directly.
+- English-preferred Open Food Facts product-name lookup;
+- household barcode product cache and one-time backfill from existing barcode inventory;
+- persistent household custom categories and dashboard category filters;
+- granular per-user Discord activity opt-ins;
+- backend item create/update/delete activity fanout and household activity feed;
+- an in-app **Activity** tab;
+- SideStore-local expiry reminders from synced inventory, exposed as **Expiry reminders on this iPhone**.
+
+**Backend deployment is complete.** The updated Cloud Functions and Firestore rules for this source batch have already been deployed. Do not list backend/rules deployment as pending work.
+
+The remaining gate for this source batch is a fresh SideStore build/install and real-device validation of the newer behavior.
+
+## SideStore distribution
+
+PR #19 added the publisher-side distribution path:
+
+- the existing ad-hoc unsigned SideStore IPA workflow remains available;
+- `Publish SideStore Release` can build the zero-fee profile and publish permanent GitHub Release assets;
+- each release contains `FreshFlag.ipa` and `source.json`;
+- the permanent source URL is `https://github.com/rpatel2023/FreshFlag/releases/latest/download/source.json`;
+- friends add the source once and SideStore performs per-user signing on their own devices.
+
+The first permanent SideStore release has not yet been published/validated end to end.
 
 ## Current known gaps / bugs
 
-- No current blocking product gap is documented here after the real-device testing phase and the post-validation source batch above.
+- No current blocking product gap is documented after the existing real-device testing and backend deployment.
+- The newest source batch still needs fresh-build/device validation.
+- The new permanent SideStore release/source pipeline still needs its first end-to-end release validation.
 - When new bugs are found in normal use, record them here before starting implementation.
 
 ## Current priority
 
-Before coding:
+Unless the user names a higher-priority bug or feature:
 
-1. inspect the current repository, tests, rules, and latest handoff docs;
-2. preserve the already-tested production/device behavior listed above;
-3. avoid reopening completed acceptance-test work without new evidence;
-4. keep future work focused on the Fresh Flag core expiry loop unless the user explicitly prioritizes something else.
+1. build the current SideStore release from `main`;
+2. install it on the existing test iPhone(s);
+3. validate the newer source batch on-device;
+4. publish the first permanent SideStore release;
+5. add the permanent source in SideStore and validate install/update behavior before sharing it with friends.
+
+Do **not** repeat Firebase Functions/Firestore rules deployment unless there is a newer backend change or deployment evidence indicates a regression.
 
 ## Evidence hierarchy
 
 When documentation disagrees, use this order:
 
 1. current repository behavior + tests + Firestore rules;
-2. this `CURRENT_STATE.md` file;
-3. `DECISIONS.md`;
-4. original `PROJECT_CONTEXT_ORIGINAL.md` phase plan.
+2. explicit newer runtime/deployment confirmation from the user;
+3. this `CURRENT_STATE.md` file;
+4. `DECISIONS.md`;
+5. original `PROJECT_CONTEXT_ORIGINAL.md` phase plan.
 
 The original phase numbering is historical planning context, not proof that a feature remains unimplemented.
